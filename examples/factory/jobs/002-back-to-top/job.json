@@ -1,0 +1,29 @@
+{
+  "id": "002-back-to-top",
+  "title": "Back-to-top button",
+  "feature": "Back-to-top button",
+  "branch": "factory/002-back-to-top",
+  "worktree": "/home/you/code/my-app-factory/002-back-to-top",
+  "stage": "needs-human",
+  "round": 1,
+  "resumes": 0,
+  "port": null,
+  "builderAgent": "builder-002-back-to-top",
+  "approvedAt": null,
+  "updated": "2026-10-12T13:40:00Z",
+  "note": "ESCALATE: touches .github/workflows (guardrail)",
+  "history": [
+    {
+      "security": "PASS",
+      "ux": "PASS",
+      "ui": "PASS",
+      "code": "PASS"
+    }
+  ],
+  "reviews": {
+    "security": "PASS",
+    "ux": "PASS",
+    "ui": "PASS",
+    "code": "PASS"
+  }
+}

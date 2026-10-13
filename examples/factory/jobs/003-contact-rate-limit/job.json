@@ -1,0 +1,29 @@
+{
+  "id": "003-contact-rate-limit",
+  "title": "Rate-limit the contact form",
+  "feature": "Rate-limit the contact form",
+  "branch": "factory/003-contact-rate-limit",
+  "worktree": "/home/you/code/my-app-factory/003-contact-rate-limit",
+  "stage": "review",
+  "round": 2,
+  "resumes": 1,
+  "port": null,
+  "builderAgent": "builder-003-contact-rate-limit",
+  "approvedAt": null,
+  "updated": "2026-10-12T15:00:00Z",
+  "note": "",
+  "history": [
+    {
+      "security": "CHANGES",
+      "ux": "PASS",
+      "ui": "n/a",
+      "code": "PASS"
+    }
+  ],
+  "reviews": {
+    "security": "pending",
+    "ux": "PASS",
+    "ui": "n/a",
+    "code": "PASS"
+  }
+}

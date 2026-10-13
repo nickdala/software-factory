@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "software-factory",
+  "description": "The software-factory plugin.",
+  "owner": { "name": "Nick Dalalelis" },
+  "plugins": [
+    {
+      "name": "software-factory",
+      "description": "A small, visual software factory: /factory runs features through spec → build → 4 parallel reviews → approval → merge queue, in git worktrees.",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}

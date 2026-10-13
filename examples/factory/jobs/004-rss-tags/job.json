@@ -1,0 +1,22 @@
+{
+  "id": "004-rss-tags",
+  "title": "Tags in the RSS feed",
+  "feature": "Tags in the RSS feed",
+  "branch": "factory/004-rss-tags",
+  "worktree": "/home/you/code/my-app-factory/004-rss-tags",
+  "stage": "build",
+  "round": 0,
+  "resumes": 0,
+  "port": null,
+  "builderAgent": "builder-004-rss-tags",
+  "approvedAt": null,
+  "updated": "2026-10-12T15:01:00Z",
+  "note": "",
+  "history": [],
+  "reviews": {
+    "security": "pending",
+    "ux": "pending",
+    "ui": "pending",
+    "code": "pending"
+  }
+}

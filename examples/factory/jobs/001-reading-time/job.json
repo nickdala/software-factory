@@ -1,0 +1,29 @@
+{
+  "id": "001-reading-time",
+  "title": "Reading time on posts",
+  "feature": "Reading time on posts",
+  "branch": "factory/001-reading-time",
+  "worktree": "/home/you/code/my-app-factory/001-reading-time",
+  "stage": "merged",
+  "round": 1,
+  "resumes": 0,
+  "port": null,
+  "builderAgent": "builder-001-reading-time",
+  "approvedAt": "2026-10-12T11:02:00Z",
+  "updated": "2026-10-12T11:05:00Z",
+  "note": "",
+  "history": [
+    {
+      "security": "PASS",
+      "ux": "PASS",
+      "ui": "PASS",
+      "code": "PASS"
+    }
+  ],
+  "reviews": {
+    "security": "PASS",
+    "ux": "PASS",
+    "ui": "PASS",
+    "code": "PASS"
+  }
+}
