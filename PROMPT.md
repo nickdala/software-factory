@@ -302,7 +302,7 @@ running each command once to record what really happens:
 
 ## Dashboard (templates/dashboard.html)
 One self-contained HTML file with no external scripts and a tiny inline
-markdown renderer. Serve it with `python3 -m http.server` from factory/.
+markdown renderer. Serve it with `python3 -m http.server 8000 --bind 127.0.0.1` from factory/ (localhost only: job files include security findings).
 - Every 2s it lists jobs/ (from the server's directory index) and reads each
   job.json. It keeps the last good copy if a file is mid-write. A missing
   jobs/ folder means no jobs yet; a network error means the server is offline.

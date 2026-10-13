@@ -216,7 +216,7 @@ Tell it: "You are resuming. Read spec.md, build.md, every round folder, and
 3. Add `factory/jobs/` and `factory/.merge.lock` to `.gitignore`.
 4. If CI deploys on push, *suggest* a `paths-ignore` for `factory/**`. Don't edit CI files.
 5. Tell the user to review project.md, then watch the board:
-   `cd factory && python3 -m http.server 8000` → http://localhost:8000/dashboard.html
+   `cd factory && python3 -m http.server 8000 --bind 127.0.0.1` → http://localhost:8000/dashboard.html
 
 ### `/factory <feature>`
 Run one job with this feature, from step 1.

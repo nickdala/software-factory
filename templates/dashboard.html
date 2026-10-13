@@ -329,7 +329,7 @@
         $("dot").classList.add("off");
         $("updated").textContent = "offline";
         $("notice").innerHTML = `<div class="notice">Can't reach the server. Serve the factory folder:
-          <code>cd factory &amp;&amp; python3 -m http.server 8000</code>, then open
+          <code>cd factory &amp;&amp; python3 -m http.server 8000 --bind 127.0.0.1</code>, then open
           <code>http://localhost:8000/dashboard.html</code>. Run <code>/factory init</code> first if there's no factory/ folder.</div>`;
         return;
       }

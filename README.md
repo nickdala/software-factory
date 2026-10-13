@@ -106,7 +106,7 @@ session, so parallel jobs never drive each other's browsers.
 ## Watch it
 
 ```
-cd factory && python3 -m http.server 8000
+cd factory && python3 -m http.server 8000 --bind 127.0.0.1
 open http://localhost:8000/dashboard.html
 ```
 
@@ -114,7 +114,7 @@ The board lists `factory/jobs/` and reads every `job.json`, so jobs from every
 session show up. To try it with no jobs of your own:
 
 ```
-cd examples/factory && python3 -m http.server 8000   # five example jobs
+cd examples/factory && python3 -m http.server 8000 --bind 127.0.0.1   # five example jobs
 ```
 
 In Claude Code, the status line shows something like
