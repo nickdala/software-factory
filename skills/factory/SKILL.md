@@ -25,6 +25,8 @@ REVIEWERS    = security, ux, ui, code
 STATE        = python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py
 ```
 
+`STATE <cmd> REPO` below means `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <cmd> REPO`, written out in full. Don't store it in a shell variable: zsh doesn't split an unquoted variable into words, so `$STATE active` fails.
+
 ## The loop (edit this to change the factory)
 
 ```
@@ -59,6 +61,7 @@ feature → [worktree] → spec-writer → builder ◄────────�
   - the **Setup** command for a fresh checkout
   - the **Verify** commands
   - the **Dev server** command and the **Browser check** setting
+  - the **Verification** skill, or `none`
   - the **Guardrails**
 
   Agents also read the repo's own `AGENTS.md` / `CLAUDE.md` when present.
@@ -69,8 +72,11 @@ feature → [worktree] → spec-writer → builder ◄────────�
   project's tools never scan it. Always use the absolute path.
 - `BRANCH = factory/<id>`.
 - Ports: with `n` the job number (`004` → 4), the builder gets `5100+10n`,
-  review-ux gets `5101+10n` and review-ui gets `5102+10n`. They're only used
-  when Browser check isn't `none`.
+  review-ux gets `5101+10n`, review-ui gets `5102+10n` and the approver gets
+  `5103+10n`. They're only used when Browser check or Verification isn't `none`.
+- `JOB_DIR/evidence/<role>/` holds proof that agents capture from the running
+  app (screenshots, snapshots, transcripts). It's outside the worktree, so proof
+  never dirties the job branch.
 - Templates live in `${CLAUDE_PLUGIN_ROOT}/templates/`. If that variable isn't
   expanded, find them with
   `find ~/.claude/plugins -path '*software-factory*/templates/dashboard.html'`.
@@ -103,8 +109,8 @@ feature → [worktree] → spec-writer → builder ◄────────�
 Every agent prompt starts with:
 `Job folder: <JOB_DIR>. Worktree: <WORKTREE>. Branch: <BRANCH>. Integration: <INTEGRATION>.`
 Then add the step-specific part: `Feature: …`, `Build round N.`, `Review round N.`
-or `Final round: N.`. The builder, review-ux and review-ui also get
-` Port: <port>.` when Browser check is on. Spawn the four reviewers in **one
+or `Final round: N.`. The builder, review-ux, review-ui and the approver also
+get ` Port: <port>.` when Browser check or Verification isn't `none`. Spawn the four reviewers in **one
 message**, so they run in parallel.
 
 ## Running a job
@@ -115,11 +121,11 @@ poll an agent. To wait for something outside this session (a free slot, the
 merge lock), run a background Bash loop such as `until <check>; do sleep 15; done`.
 You'll be notified when it exits.
 
-1. **Claim.** Pick an id: `NNN=$($STATE next-id REPO)`, plus a 2–4 word
+1. **Claim.** Pick an id: `NNN=$(STATE next-id REPO)`, plus a 2–4 word
    kebab-case slug. Claim it with `mkdir REPO/factory/jobs/<id>` (no `-p`). If
    that fails, another session took the number: pick the next one and retry.
    Write job.json with stage `queued`, round 0, resumes 0, and all four reviews pending.
-2. **Slot.** Start only when `$STATE active REPO` is below `MAX_PARALLEL`.
+2. **Slot.** Start only when `STATE active REPO` is below `MAX_PARALLEL`.
    Otherwise stay queued, and wait in the background for a slot to free.
 3. **Worktree** (stage spec). Run:
    `git -C REPO worktree add -b BRANCH WORKTREE INTEGRATION`. Then run
@@ -158,7 +164,7 @@ You'll be notified when it exits.
 ### Merge (one at a time, across all sessions)
 
 1. **Wait your turn.** Your job must be the merge-queue head
-   (`$STATE queue-head REPO` prints its id), and you must take the lock with
+   (`STATE queue-head REPO` prints its id), and you must take the lock with
    `mkdir REPO/factory/.merge.lock` and write the id to `.merge.lock/owner`.
    Wait in the background until both are true. If the lock's owner job is no
    longer merging, the lock is stale: remove it.
@@ -205,7 +211,7 @@ Tell it: "You are resuming. Read spec.md, build.md, every round folder, and
 ### `/factory init`
 1. Create `REPO/factory/` and copy `project.md`, `backlog.md` and
    `dashboard.html` from the templates. Never overwrite an existing project.md
-   or backlog.md. On a re-run, only refresh dashboard.html.
+   or backlog.md. On a re-run, the only template to refresh is dashboard.html.
 2. Fill in project.md by inspecting the repo: `AGENTS.md`/`CLAUDE.md`,
    manifests, lint, format and test configs, CI workflows, `git branch -a`,
    README.
@@ -213,9 +219,25 @@ Tell it: "You are resuming. Read spec.md, build.md, every round folder, and
    - If there's no obvious integration branch, ask the user. Never pick PRODUCTION.
    - Set Browser check to `agent-browser` only if `agent-browser` is installed
      and the dev server starts. Otherwise set it to `none`.
-3. Add `factory/jobs/` and `factory/.merge.lock` to `.gitignore`.
-4. If CI deploys on push, *suggest* a `paths-ignore` for `factory/**`. Don't edit CI files.
-5. Tell the user to review project.md, then watch the board:
+3. **Verification skill.** If project.md's Verification is `none`, look for an
+   existing `verify-*` skill in the repo's project skill folders
+   (`.agents/skills/`, then `.claude/skills/`). If you find one that launches on a
+   given port, record its path and skip the rest of this step.
+   Otherwise, if the app has a surface an agent can drive (the dev server
+   starts, or it's a CLI or a service), ask the user whether to generate one.
+   On yes, spawn a `general-purpose` agent with:
+   `Read ${CLAUDE_PLUGIN_ROOT}/references/verification-skill.md in full and follow it for the repo at <REPO>. Integration branch: <INTEGRATION>. factory/project.md has the setup and dev-server commands.`
+   When it finishes, check that the skill file exists, then set Verification
+   to its path. If the agent couldn't prove the skill, leave Verification at
+   `none` and pass on its reason. The agent writes it to `.agents/skills/`,
+   because Claude Code asks for approval before any write into `.claude/` and
+   unattended agents can't give it. This step also runs on a re-run, so a repo
+   set up earlier can add a skill. Changing that one line is the only edit a
+   re-run makes to an existing project.md.
+4. Add `factory/jobs/` and `factory/.merge.lock` to `.gitignore`.
+5. If CI deploys on push, *suggest* a `paths-ignore` for `factory/**`. Don't edit CI files.
+6. Tell the user to review and commit project.md (and the verification skill,
+   if one was generated). A dirty main checkout blocks merges. Then watch the board:
    `cd factory && python3 -m http.server 8000 --bind 127.0.0.1` → http://localhost:8000/dashboard.html
 
 ### `/factory <feature>`

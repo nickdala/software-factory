@@ -260,7 +260,7 @@
         <div class="meta">${esc(job.id)}</div>
         <div class="meta">${esc(job.branch || "")}</div>
         <div class="row meta">
-          <span>${job.round ? `round ${job.round}` : esc(job.stage)}${qpos >= 0 ? ` · #${qpos + 1} in queue` : ""}</span>
+          <span>${job.round ? `round ${esc(job.round)}` : esc(job.stage)}${qpos >= 0 ? ` · #${qpos + 1} in queue` : ""}</span>
           <span>${esc(ago(job.updated))}</span>
         </div>
         ${rows.length ? `<div class="rounds">${rows.join("")}</div>` : ""}

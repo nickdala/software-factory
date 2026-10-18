@@ -47,8 +47,11 @@ feature → [worktree] → spec-writer → builder ◄────────�
   their own previous round's findings. Any CHANGES resumes the same builder.
   After 2 resumes, the job escalates.
 - **Approval:** the approver spot-checks a criterion and checks
-  `git merge-tree` for conflicts. It escalates guardrail changes and spec
-  assumptions that are really product decisions.
+  `git merge-tree` for conflicts. It also names the one fact the change is
+  safe because of, and proves it by running real code: a throwaway script, a
+  test, or the running app. A fact it can't prove that way means ESCALATE. It
+  also escalates guardrail changes and spec assumptions that are really
+  product decisions.
 - **Merge:** one job at a time, only when the main checkout is clean and on the
   integration branch. The job's branch is brought up to date and re-verified
   first. **Nothing is ever pushed, and the production branch is never touched.**
@@ -103,6 +106,14 @@ and set `Browser check: agent-browser`. The builder and the UX/UI reviewers will
 then look at the running app on per-job ports. Each uses its own browser
 session, so parallel jobs never drive each other's browsers.
 
+**Optional:** let `/factory init` generate a verification skill
+(`.agents/skills/verify-<app>/`). It's a tested recipe for launching the app on
+a given port, driving it the way a user does, and capturing evidence, plus a
+map of user-facing features. When `project.md`'s `Verification` names it, the
+builder, the UX/UI reviewers and the approver follow it rather than working out
+the app each time, and they save proof to `factory/jobs/<id>/evidence/`. Run
+`/factory init` again in a repo that's already set up to add one later.
+
 ## Watch it
 
 ```
@@ -145,6 +156,7 @@ skills/factory/SKILL.md      the orchestrator: loop, job state machine, merge qu
 agents/                      spec-writer, builder, approver, review-{security,ux,ui,code}
 scripts/factory_state.py     read-only queries over every job.json (active count, merge-queue head, next id)
 templates/                   dashboard.html, project.md, backlog.md
+references/                  how to generate a repo's verification skill (from pstack)
 hooks/register.ts            the mod: status line + toasts (tests: register.test.ts)
 types/index.d.ts             the mod's state contract
 examples/factory/            five example jobs for the board
@@ -158,7 +170,8 @@ factory/
   project.md                 repo facts every agent reads (commit this)
   backlog.md                 "- [ ] feature" queue (commit this)
   dashboard.html             the board
-  jobs/<id>/                 job.json, spec.md, build.md, round-N/*.md, decision.md (gitignored)
+  jobs/<id>/                 job.json, spec.md, build.md, round-N/*.md, decision.md, evidence/ (gitignored)
+.agents/skills/verify-<app>/ optional verification skill (commit this)
 ../<repo>-factory/<id>/      one worktree per active job
 ```
 
@@ -192,6 +205,13 @@ This version packages the idea as an installable plugin. On top of it, it adds:
 - `/factory resume`
 - `PASS (n/a)` verdicts, so UX/UI reviewers can skip changes outside their area
 - a status line and toast mod
+
+Two pieces come from [pstack](https://github.com/cursor/plugins/tree/main/pstack)
+by Lauren Tan (MIT License, Copyright (c) 2026 Lauren Tan):
+- `references/verification-skill.md` and `references/feature-map-example/`
+  adapt its `create-verification-skill` skill
+- the approver's "Prove it's safe" step adapts its `blast-radius` skill: find
+  the one fact a change is safe because of, and prove it on a five-step scale
 
 ## Develop
 

@@ -55,7 +55,10 @@ The approver escalates when one of these is really a product decision.
 
 - Prefer the smallest change that fully meets the request. No extra options or fallbacks.
 - Reuse what exists. Name the pattern in Context, and require it.
-- Include any doc updates the change needs as requirements.
+- Include any doc updates the change needs as requirements, except the verification
+  skill named in project.md and anything under `.claude/`. Jobs never edit those. If the
+  change makes the skill's feature map out of date, say so under Assumptions so a human
+  can update it.
 - Ask for new tests only if the repo has a test runner.
 
 When you're done, reply with one line: the title and the number of acceptance criteria.

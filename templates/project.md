@@ -33,6 +33,13 @@
      the builder and the UX/UI reviewers work from the code and diff alone. -->
 none
 
+## Verification
+<!-- Path, from the repo root, to a project skill that launches and drives the
+     app on a given port, e.g. `.agents/skills/verify-<app>/SKILL.md`, or `none`.
+     When set, the builder, the UX/UI reviewers and the approver follow it to
+     prove behavior in the running app. /factory init can generate one. -->
+none
+
 ## Conventions
 <!-- From the repo's config files and code: formatting, naming, file layout, commit style. -->
 

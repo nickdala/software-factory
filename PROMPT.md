@@ -84,6 +84,9 @@ scripts/factory_state.py           # read-only queries over every job.json:
                                    #   active <repo> | queue-head <repo> | next-id <repo>
 templates/                         # copied into a repo by /factory init
   dashboard.html  project.md  backlog.md
+references/                        # read by the agent /factory init spawns
+  verification-skill.md            # how to write a repo's verify-<app> skill (from pstack)
+  feature-map-example/             # the feature-map shape it follows
 hooks/
   hooks.json                       # { "modules": ["./register.ts"] }
   register.ts                      # the mod: status line + toasts
@@ -127,9 +130,11 @@ Job state always lives in the main checkout, never in a worktree.
 - Run project.md's Setup command (a real install) in the worktree. Symlinking
   the main checkout's dependencies is an explicit opt-in in project.md, because
   a package a builder adds would otherwise land in the main checkout.
-- Ports: with n the job number, the builder gets 5100+10n, review-ux 5101+10n
-  and review-ui 5102+10n. They're used only when project.md's Browser check
-  isn't `none`.
+- Ports: with n the job number, the builder gets 5100+10n, review-ux 5101+10n,
+  review-ui 5102+10n and the approver 5103+10n. They're used only when
+  project.md's Browser check or Verification isn't `none`.
+- Proof from the running app goes to `<job folder>/evidence/<role>/`, outside
+  the worktree, so it never dirties the job branch.
 - **Every agent starts every Bash command with `cd <worktree> && `,** because
   the shell returns to the main checkout after each command. Agents give
   Read/Edit/Write/Grep/Glob absolute paths, and write only their own file in
@@ -215,7 +220,7 @@ All agents:
   - writes build.md with these sections: `STATUS: READY | BLOCKED`, Summary,
     Acceptance criteria with evidence, Validation, and a per-round Log that
     answers every review finding
-  - with a port, looks at the running app (see Browser check)
+  - with a port, looks at the running app (see Browser check and Verification)
 - **reviewers** (security opus; ux, ui, code sonnet):
   - read spec.md, build.md and the diff (`git diff <integration>...HEAD`)
   - **from round 2 on, check their own previous round's findings**
@@ -226,7 +231,7 @@ All agents:
   - ux and ui may write just `VERDICT: PASS (n/a)` when nothing in the change
     is user-facing
   - code re-runs Verify
-  - ux and ui, with a port, look at the running app (see Browser check)
+  - ux and ui, with a port, look at the running app (see Browser check and Verification)
   - checklists:
     - **security:** access control, input handling and injection, XSS, data
       exposure, payments and identity, abuse and rate limits, secrets,
@@ -245,8 +250,18 @@ All agents:
   - ESCALATE for: guardrail paths; money, access or identity; deploy, CI,
     hosting or build scripts; schema migrations, email, production data, new
     dependencies; any spec Assumption that is really a product decision
+  - **proves the change is safe** (adapted from pstack's blast-radius): says
+    what the change really does, names the one fact it's safe because of,
+    looks where grep stops (library source, timing, data across boundaries),
+    and proves the fact on a scale: 1 stated, 2 pointed at `path:line`,
+    3 walked, 4 ran real code (a throwaway script in the worktree, deleted
+    afterwards, or a test), 5 reproduced in the running app. APPROVE needs
+    step 4 or 5. Step 3 is enough only when nothing in the change can run
+    (docs, comments, content text). Otherwise ESCALATE with
+    `safety fact unproven: <fact>`. Confirmed risks that matter also escalate.
   - writes decision.md: `APPROVE | ESCALATE`, a one-line reason (shown on the
-    board), then Why, Acceptance criteria, and For the human
+    board), then Why, Acceptance criteria, Safety fact (step and pasted proof),
+    Risks (confirmed and cleared), and For the human
 
 ## Browser check (optional)
 When project.md sets `Browser check: agent-browser`, the builder, review-ux and
@@ -259,13 +274,33 @@ review-ui:
 
 With `none`, they work from the code alone.
 
+## Verification (optional)
+project.md's Verification names a project skill (e.g.
+`.agents/skills/verify-<app>/SKILL.md`) that launches and drives the app, or
+`none`. /factory init can generate one: it spawns a general-purpose agent that
+follows references/verification-skill.md (adapted from pstack's
+create-verification-skill). The generated skill:
+- takes `{worktree}`, `{port}`, `{session}` and `{evidence}` as inputs, and
+  keeps each run's state isolated, so parallel jobs never collide
+- has Safety, Launch, Doctor, Drive, Evidence and Cleanup sections, and a
+  feature map with one file per user-facing feature
+- is proven end to end once before init records it
+
+When it's set, the builder, review-ux, review-ui and the approver read it from
+the main checkout and follow it with their own port and session
+(`<job-id>-<role>`), driving every entry point the map lists for an affected
+feature. They sign in or submit forms only when its Safety line says the
+instance is local and seeded. If Doctor fails, they fall back to Browser check.
+
 ## Commands
 /factory init                    copy the templates into factory/ (never overwrite
                                  project.md or backlog.md; a re-run refreshes only
-                                 dashboard.html), fill in project.md by inspecting
-                                 the repo, gitignore factory/jobs/ and
-                                 factory/.merge.lock, suggest (don't make) a CI
-                                 paths-ignore for factory/**
+                                 dashboard.html and repeats the Verification offer),
+                                 fill in project.md by inspecting the repo, offer
+                                 to generate a verification skill, gitignore
+                                 factory/jobs/ and factory/.merge.lock, suggest
+                                 (don't make) a CI paths-ignore for factory/**,
+                                 and tell the user to commit project.md
 /factory <feature>               run a new job through the loop
 /factory next [N]                N ≤ 3. Claim each item with one exact-line Edit
                                  ("- [ ] x" → "- [x] x → claimed", then the job id).
@@ -296,6 +331,10 @@ running each command once to record what really happens:
 - Dev server: a command with a {port} placeholder, or none.
 - Browser check: agent-browser only if it's installed and the dev server works.
   Otherwise none.
+- Verification: the path of an existing verify-* skill that takes a port, or
+  one generated on the user's yes (see Verification), or none. A re-run of
+  init offers this again, and that line is the only thing it changes in an
+  existing project.md.
 - Conventions.
 - Guardrails: "never commit secrets, never push, never touch production", plus
   the paths the approver must escalate.
