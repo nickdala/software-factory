@@ -1,6 +1,6 @@
 ---
 name: review-code
-description: Factory review lens. Reviews a job branch for correctness, clarity, conventions and verification, and writes round-N/review-code.md.
+description: Factory review lens. Reviews a job branch on two axes, spec (does it do what was asked) and standards (correctness, conventions, tests, smells), and writes round-N/review-code.md.
 tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 ---
@@ -30,12 +30,48 @@ other jobs running in parallel.
 
 ## What to look for
 
+Review on two axes, and keep them apart. A change can follow every standard
+and build the wrong thing, or build the right thing badly. Listing them
+separately stops one from hiding the other.
+
+**Spec:** does the change do what spec.md asked?
+- Requirements or acceptance criteria that are missing or only partly met.
+  Re-run project.md's Verify commands in the worktree to confirm build.md's claims.
+- Behavior the spec didn't ask for, especially anything under Out of scope.
+- Requirements that look implemented but are wrong.
+- For a bug (`Type: bug`): build.md's Diagnosis loop asserts the spec's
+  Symptom, not something nearby, and the Cause explains that Symptom.
+
+Quote the spec line for each Spec finding.
+
+**Standards:** is it well made?
 - Correctness: logic bugs, edge cases, error handling, races.
-- Every acceptance criterion is really met. Re-run project.md's Verify
-  commands in the worktree to confirm build.md's claims.
-- Conventions from project.md and the surrounding code: naming, layout, formatting.
-- Simplicity: dead code, duplication, needless abstraction, leftover debug output.
+- Conventions from project.md, `CONTRIBUTING.md` or `CODING_STANDARDS.md`
+  when present, and the surrounding code: naming, layout, formatting. Cite the rule.
+- Leftover debug output, dead code, and throwaway scripts.
 - Tests or checks for the new behavior, where the repo has a way to test.
+  A test that recomputes its expected value the way the code does can never
+  fail, so it doesn't count.
+
+Then look for these smells. Each is a judgement call, never a blocking
+finding. Name it as "possible <smell>" under Notes and quote the hunk. Skip a
+smell when the repo's documented conventions endorse it, or when a linter
+already catches it.
+- Mysterious Name: a name that doesn't say what the thing does or holds.
+- Duplicated Code: the same logic in more than one hunk or file of the change.
+- Feature Envy: a function that uses another object's data more than its own.
+- Data Clumps: the same few values always passed around together.
+- Primitive Obsession: a string or number standing in for a domain concept.
+- Repeated Switches: the same `switch` or `if` cascade in more than one place.
+- Shotgun Surgery: one logical change scattered across many files.
+- Divergent Change: one file edited for several unrelated reasons.
+- Speculative Generality: options, parameters or hooks the spec doesn't need.
+- Message Chains: long `a.b().c().d()` walks the caller shouldn't depend on.
+- Middle Man: a function or class that only passes calls through.
+- Refused Bequest: a subclass that overrides or ignores most of what it inherits.
+
+(The smell list is from Martin Fowler's *Refactoring*, chapter 3, via
+[Matt Pocock's code-review skill](https://github.com/mattpocock/skills).)
 
 **Judge only this job's change.** Don't block on a problem that existed before
 it and that the change doesn't make worse. Mention it under Notes instead.
@@ -46,15 +82,19 @@ it and that the change doesn't make worse. Mention it under Notes instead.
 VERDICT: PASS | CHANGES
 
 ## Findings
-1. <path:line or page> <the problem, its impact, and the fix you want>
+### Spec
+1. <the spec line, quoted> <what's missing, extra or wrong, and the fix you want>
+### Standards
+1. <path:line> <the problem, its impact, and the fix you want>
 
 ## Notes
-Non-blocking observations. Optional.
+Non-blocking observations and possible smells. Optional.
 ```
 
 - The first line must be exactly `VERDICT: PASS` or `VERDICT: CHANGES`.
 - Use CHANGES only for real, blocking problems in this change, within the
-  spec's scope. Taste goes under Notes.
-- Under Findings, write "None." when there are none.
+  spec's scope. Taste and smells go under Notes.
+- Write "None." under an axis that has no findings.
+- Don't rank Spec findings against Standards findings.
 
 When you're done, reply with your verdict line.

@@ -86,6 +86,7 @@ templates/                         # copied into a repo by /factory init
   dashboard.html  project.md  backlog.md
 references/                        # read by the agent /factory init spawns
   verification-skill.md            # how to write a repo's verify-<app> skill (from pstack)
+  retro.md                         # how to retro a finished job (from Matt Pocock's skills)
   feature-map-example/             # the feature-map shape it follows
 hooks/
   hooks.json                       # { "modules": ["./register.ts"] }
@@ -201,6 +202,8 @@ All agents:
 
 - **spec-writer** writes spec.md with these sections:
   - `> Feature: <verbatim>`
+  - `Type: feature | bug`, and for a bug a **Symptom** section: what the user
+    does, sees and expected, and where the spec-writer saw it
   - Context (real paths, patterns to reuse)
   - Requirements
   - Acceptance criteria: 3–7, each with a Check that someone who only has the
@@ -209,6 +212,7 @@ All agents:
   - **Assumptions**: decisions made where the request was ambiguous
 
   It prefers the smallest change, and asks for tests only if the repo has a runner.
+  For a bug, AC-1 is "the symptom is gone", and it describes the symptom, not a cause.
 - **builder:**
   - checks the current branch first
   - matches the surrounding code, and makes the simplest change that meets the
@@ -221,6 +225,13 @@ All agents:
     Acceptance criteria with evidence, Validation, and a per-round Log that
     answers every review finding
   - with a port, looks at the running app (see Browser check and Verification)
+  - **fixes a bug with a diagnosis loop** (adapted from Matt Pocock's
+    diagnosing-bugs): before reading code for a theory, it builds one command
+    that fails on the spec's exact Symptom, deterministically, in seconds; then
+    shrinks the repro, ranks 3–5 falsifiable hypotheses, writes a regression
+    test first when a seam reaches the bug, and fixes it until the same command
+    passes. No loop → BLOCKED with what it tried. build.md gets a Diagnosis
+    section: loop, failing output, hypotheses, cause, passing output, regression test
 - **reviewers** (security opus; ux, ui, code sonnet):
   - read spec.md, build.md and the diff (`git diff <integration>...HEAD`)
   - **from round 2 on, check their own previous round's findings**
@@ -240,8 +251,14 @@ All agents:
       accessibility, phone width
     - **ui:** consistency with the visual language and theme tokens, layout at
       phone and desktop widths, contrast and focus, dark mode, hard-coded values
-    - **code:** correctness, the acceptance criteria really met, conventions,
-      simplicity, tests where the repo can test
+    - **code** (two axes, adapted from Matt Pocock's code-review, kept apart and
+      never ranked against each other):
+      - Spec: requirements missing or partial, behavior not asked for, behavior
+        that's wrong, and for a bug a loop that asserts the real Symptom.
+        Each finding quotes the spec line
+      - Standards: correctness, documented conventions, debug leftovers, tests
+        where the repo can test (a tautological test doesn't count)
+      - Fowler's 12 code smells, only as "possible <smell>" Notes, never blocking
 - **approver:**
   - APPROVE only if all of these hold: every criterion is met with convincing
     evidence (**it spot-checks at least one itself**); the final reviews are
@@ -257,7 +274,8 @@ All agents:
     3 walked, 4 ran real code (a throwaway script in the worktree, deleted
     afterwards, or a test), 5 reproduced in the running app. APPROVE needs
     step 4 or 5. Step 3 is enough only when nothing in the change can run
-    (docs, comments, content text). Otherwise ESCALATE with
+    (docs, comments, content text). For a bug, it re-runs build.md's loop
+    (it must pass, and its "before" output must show the spec's Symptom). Otherwise ESCALATE with
     `safety fact unproven: <fact>`. Confirmed risks that matter also escalate.
   - writes decision.md: `APPROVE | ESCALATE`, a one-line reason (shown on the
     board), then Why, Acceptance criteria, Safety fact (step and pasted proof),
@@ -314,6 +332,13 @@ instance is local and seeded. If Doctor fails, they fall back to Browser check.
 /factory resume [job-id]         show each unfinished job's stage and how long since its
                                  last update, confirm no other live session drives it,
                                  then continue from the first missing artifact
+/factory retro [job-id]          merged or needs-human jobs only (default: the most
+                                 recent one). A general-purpose agent follows
+                                 references/retro.md: reads the job folder and the
+                                 session transcripts, and writes JOB_DIR/retro.md with
+                                 suggestions ranked by severity for project.md, the
+                                 repo's checks, the verification skill and the plugin's
+                                 agents. It edits nothing else; the user picks what to apply
 
 The orchestrator posts one short line per transition, and ends with a summary:
 what merged and is ready to push, and what needs a human and why.

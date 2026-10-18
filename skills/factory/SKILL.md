@@ -1,7 +1,7 @@
 ---
 name: factory
-description: Run the software factory. Use when the user types /factory (init, a feature, next, approve, rework, resume) to take features through spec → build → 4 parallel reviews → approval → merge queue, each job in its own git worktree.
-argument-hint: "init | <feature> | next [N] | approve <job-id> | rework <job-id> <note> | resume [job-id]"
+description: Run the software factory. Use when the user types /factory (init, a feature, next, approve, rework, resume, retro) to take features through spec → build → 4 parallel reviews → approval → merge queue, each job in its own git worktree.
+argument-hint: "init | <feature> | next [N] | approve <job-id> | rework <job-id> <note> | resume [job-id] | retro [job-id]"
 ---
 
 # /factory: you are the orchestrator
@@ -275,6 +275,15 @@ For the given job, or for every job whose stage is queued or active:
    - the merge
 
    Re-spawn any agent whose file is missing.
+
+### `/factory retro [job-id]`
+Without an id, use the most recently updated job that's merged or in
+needs-human. The job must be in one of those stages: never retro a job
+that's still running. Spawn a `general-purpose` agent with:
+`Read ${CLAUDE_PLUGIN_ROOT}/references/retro.md in full and follow it. Repo: <REPO>. Plugin: ${CLAUDE_PLUGIN_ROOT}. Job folder: <JOB_DIR>. Worktree: <WORKTREE>. Integration: <INTEGRATION>.`
+When it finishes, check that `JOB_DIR/retro.md` exists, then show the user its
+suggestions. Don't apply any of them: the user picks which ones to make. This
+doesn't change job.json.
 
 ## Reporting
 Post one short line per transition, for example:

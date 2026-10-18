@@ -31,6 +31,14 @@ other jobs running in parallel.
 
 > Feature: <the request, verbatim>
 
+Type: feature | bug
+
+## Symptom
+(Bugs only. Delete this section for a feature.) The user's exact symptom: what
+they do, what they see, what they expected. Where you saw it on the integration
+branch: the command or page, and its output. If you couldn't see it, say so and
+list what you tried.
+
 ## Context
 Where this lives today: the files, components and data involved, with paths.
 Existing patterns to reuse.
@@ -53,6 +61,9 @@ The approver escalates when one of these is really a product decision.
 
 ## Rules
 
+- Type is `bug` when the request says something that already exists is broken,
+  wrong or slow. For a bug, AC-1 is "the symptom is gone", checked the same way
+  you observed it. Describe the symptom, not a cause: the builder diagnoses it.
 - Prefer the smallest change that fully meets the request. No extra options or fallbacks.
 - Reuse what exists. Name the pattern in Context, and require it.
 - Include any doc updates the change needs as requirements, except the verification

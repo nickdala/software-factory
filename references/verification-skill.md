@@ -13,9 +13,10 @@ for them, not for a human.
 Use `.agents/skills/` even if the repo keeps other skills in `.claude/skills/`.
 Factory agents read this skill by the path in `factory/project.md`, so it
 doesn't need to be registered with Claude Code. Claude Code asks for approval
-before anything writes into `.claude/`, and an unattended job can't give it, so
-a skill there could never be updated by a job. Codex also loads skills from
-`.agents/skills/`.
+before anything writes into `.claude/`, and an unattended run can't give it, so
+you couldn't write the skill there. Codex also loads skills from
+`.agents/skills/`. Factory jobs never edit the skill, wherever it lives: a
+human updates its feature map after a merge.
 
 ## Factory requirements
 

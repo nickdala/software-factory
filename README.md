@@ -142,6 +142,7 @@ needs a human, merges, or fails to merge.
 | `/factory approve <job-id>` | Send a needs-human job to the merge queue |
 | `/factory rework <job-id> <note>` | Send a needs-human job back to its builder with your note |
 | `/factory resume [job-id]` | Pick up unfinished jobs after a session ends |
+| `/factory retro [job-id]` | Look back at a finished job and suggest fixes to the factory |
 
 For more throughput, open more sessions in the same repo and run `/factory` in
 each. If another plugin also defines `factory`, use `/software-factory:factory`.
@@ -156,7 +157,7 @@ skills/factory/SKILL.md      the orchestrator: loop, job state machine, merge qu
 agents/                      spec-writer, builder, approver, review-{security,ux,ui,code}
 scripts/factory_state.py     read-only queries over every job.json (active count, merge-queue head, next id)
 templates/                   dashboard.html, project.md, backlog.md
-references/                  how to generate a repo's verification skill (from pstack)
+references/                  how to generate a repo's verification skill (from pstack), how to retro a job
 hooks/register.ts            the mod: status line + toasts (tests: register.test.ts)
 types/index.d.ts             the mod's state contract
 examples/factory/            five example jobs for the board
@@ -170,7 +171,7 @@ factory/
   project.md                 repo facts every agent reads (commit this)
   backlog.md                 "- [ ] feature" queue (commit this)
   dashboard.html             the board
-  jobs/<id>/                 job.json, spec.md, build.md, round-N/*.md, decision.md, evidence/ (gitignored)
+  jobs/<id>/                 job.json, spec.md, build.md, round-N/*.md, decision.md, retro.md, evidence/ (gitignored)
 .agents/skills/verify-<app>/ optional verification skill (commit this)
 ../<repo>-factory/<id>/      one worktree per active job
 ```
@@ -212,6 +213,14 @@ by Lauren Tan (MIT License, Copyright (c) 2026 Lauren Tan):
   adapt its `create-verification-skill` skill
 - the approver's "Prove it's safe" step adapts its `blast-radius` skill: find
   the one fact a change is safe because of, and prove it on a five-step scale
+
+Three come from [Matt Pocock's skills](https://github.com/mattpocock/skills)
+(MIT License, Copyright (c) 2026 Matt Pocock):
+- the builder's bug-fix loop adapts `diagnosing-bugs`: a failing command for
+  the exact symptom before any theory, then shrink, hypothesise, fix
+- the code reviewer's separate spec and standards axes, and its code-smell
+  list (from Martin Fowler's *Refactoring*), adapt `code-review`
+- `/factory retro` and `references/retro.md` adapt `retro`
 
 ## Develop
 

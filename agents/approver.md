@@ -79,9 +79,12 @@ APPROVE only if all of these hold:
   app when you have a Port.
 - The safety fact reached step 4 or 5. Step 3 is enough only when nothing in
   the change can run: docs, comments, or content text.
+- For a bug (spec.md says `Type: bug`): you re-ran build.md's Diagnosis loop on
+  the job branch and it passes, and its "before" output shows the spec's Symptom.
+  If it shows a different failure, the fix may be for the wrong bug: ESCALATE.
 - No confirmed risk has a real chance of breaking something that matters.
 - The final round's four reviews are PASS or PASS (n/a), and no Note in them
-  describes a real problem.
+  describes a real problem. A "possible <smell>" Note is a judgement call, not a problem.
 - `cd <worktree> && git merge-tree --write-tree <integration> HEAD` reports no conflicts.
 
 ESCALATE if any of those fails (for an unproven fact, the reason is
