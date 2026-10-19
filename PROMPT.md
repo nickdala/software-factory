@@ -25,50 +25,40 @@ session across several sessions in the same repo. That's safe because:
 
 ## The loop (edit this to change the factory)
 
-                   ┌──────────────────┐
-                   │     feature      │
-                   └─────────┬────────┘
-                             ▼   claim id, create worktree, run setup
-                   ┌──────────────────┐
-                   │   spec-writer    │
-                   │       opus       │
-                   └─────────┬────────┘
-                             ▼
-                   ┌──────────────────┐
-                   │     builder      │◄────────────────────┐
-                   │       opus       │                     │
-                   └─────────┬────────┘                     │
-                             │ STATUS: READY (BLOCKED → needs-human)
-        ┌─────────────┬──────┴──────┬─────────────┐         │
-        ▼             ▼             ▼             ▼         │
-  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐   │
-  │  security │ │     ux    │ │ ui design │ │    code   │   │
-  │    opus   │ │   sonnet  │ │   sonnet  │ │   sonnet  │   │
-  └─────┬─────┘ └─────┬─────┘ └─────┬─────┘ └─────┬─────┘   │
-        └─────────────┴──────┬──────┴─────────────┘         │
-                             ▼                              │
-                   ┌──────────────────┐   any CHANGES:      │
-                   │   WAIT FOR ALL   ├─────────────────────┘
-                   │   4 reviews in   │   resume builder
-                   └─────────┬────────┘   (max 2 resumes)
-                             ▼ all PASS
-                   ┌──────────────────┐
-                   │     approver     │
-                   │       opus       │
-                   └─┬───────────────┬┘
-             APPROVE │               │ ESCALATE, BLOCKED, or rounds exhausted
-                     ▼               ▼
-              ┌─────────────┐ ┌─────────────┐
-              │ merge queue │ │ needs-human │ ◄── /factory approve
-              │ (one at a   │ └─────────────┘     /factory rework
-              │  time, lock)│
-              └──────┬──────┘
-                     ▼
-              ┌─────────────┐
-              │ merged into │   local only, never pushed
-              │ integration │   (project.md names the branch)
-              │   branch    │
-              └─────────────┘
+```mermaid
+flowchart TD
+    feature(["feature"])
+    spec["spec-writer<br/><i>opus</i>"]
+    builder["builder<br/><i>opus</i>"]
+    fan(( ))
+    security["security<br/><i>opus</i>"]
+    ux["ux<br/><i>sonnet</i>"]
+    ui["ui<br/><i>sonnet</i>"]
+    code["code<br/><i>sonnet</i>"]
+    wait{"all 4 reviews in"}
+    approver["approver<br/><i>opus</i>"]
+    human[["needs-human"]]
+    queue["merge queue<br/>one at a time, under a lock"]
+    merged[("merged into the integration branch<br/>local only, never pushed")]
+
+    feature -->|"claim an id, create the worktree, run setup"| spec
+    spec --> builder
+    builder -->|"STATUS: READY"| fan
+    fan --> security & ux & ui & code
+    security & ux & ui & code --> wait
+    wait -->|"any CHANGES: resume the builder<br/>(max 2 resumes)"| builder
+    wait -->|"all PASS"| approver
+    approver -->|"APPROVE"| queue
+    queue --> merged
+    builder -->|"STATUS: BLOCKED"| human
+    approver -->|"ESCALATE, BLOCKED<br/>or rounds exhausted"| human
+    human -->|"/factory approve"| queue
+    human -->|"/factory rework"| builder
+    queue -->|"merge fails"| builder
+
+    classDef needsHuman stroke:#d97706,stroke-width:2px
+    class human needsHuman
+```
 
 ## Plugin repo layout
 

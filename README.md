@@ -9,21 +9,39 @@ everything stands.
 Inspired by [ZazenCodes' software factory](https://github.com/zazencodes/zazencodes-season-3/tree/main/src/software-factory-claude-code).
 See [Credits](#credits).
 
-```
-feature → [worktree] → spec-writer → builder ◄──────────────────┐
-                        (opus)       (opus)  │ STATUS: READY     │
-            ┌──────────┬──────────┬──────────┴┐                  │
-         security      ux        ui        code                  │
-          (opus)    (sonnet)  (sonnet)   (sonnet)                │
-            └──────────┴────┬─────┴──────────┘                   │
-                      WAIT FOR ALL 4 ── any CHANGES ─────────────┘ (max 2 resumes)
-                            │ all PASS
-                         approver ── ESCALATE / BLOCKED / rounds exhausted ──► needs-human
-                          (opus)                                               │
-                            │ APPROVE                                          │
-                       merge queue ◄──────────── /factory approve ─────────────┘
-                            │ one at a time (lock)
-                  merged into your integration branch (local, never pushed)
+```mermaid
+flowchart TD
+    feature(["feature"])
+    spec["spec-writer<br/><i>opus</i>"]
+    builder["builder<br/><i>opus</i>"]
+    fan(( ))
+    security["security<br/><i>opus</i>"]
+    ux["ux<br/><i>sonnet</i>"]
+    ui["ui<br/><i>sonnet</i>"]
+    code["code<br/><i>sonnet</i>"]
+    wait{"all 4 reviews in"}
+    approver["approver<br/><i>opus</i>"]
+    human[["needs-human"]]
+    queue["merge queue<br/>one at a time, under a lock"]
+    merged[("merged into the integration branch<br/>local only, never pushed")]
+
+    feature -->|"claim an id, create the worktree, run setup"| spec
+    spec --> builder
+    builder -->|"STATUS: READY"| fan
+    fan --> security & ux & ui & code
+    security & ux & ui & code --> wait
+    wait -->|"any CHANGES: resume the builder<br/>(max 2 resumes)"| builder
+    wait -->|"all PASS"| approver
+    approver -->|"APPROVE"| queue
+    queue --> merged
+    builder -->|"STATUS: BLOCKED"| human
+    approver -->|"ESCALATE, BLOCKED<br/>or rounds exhausted"| human
+    human -->|"/factory approve"| queue
+    human -->|"/factory rework"| builder
+    queue -->|"merge fails"| builder
+
+    classDef needsHuman stroke:#d97706,stroke-width:2px
+    class human needsHuman
 ```
 
 ## How it works
