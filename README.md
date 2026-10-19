@@ -121,8 +121,8 @@ Which branch to use:
 ## Install
 
 ```
-/plugin marketplace add <path or git URL of this repo>
-/plugin install software-factory@software-factory
+claude plugin marketplace add https://github.com/nickdala/software-factory
+claude plugin install software-factory@software-factory
 ```
 
 Then, in the repo you want to run it on:
