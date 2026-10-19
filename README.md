@@ -73,6 +73,7 @@ flowchart TD
 - **Merge:** one job at a time, only when the main checkout is clean and on the
   integration branch. The job's branch is brought up to date and re-verified
   first. **Nothing is ever pushed, and the production branch is never touched.**
+  See [Branches](#branches).
 
 ### Review verdicts
 
@@ -97,6 +98,25 @@ reviewers must answer `PASS` or `CHANGES`.
 For example, in `examples/factory`, `003-contact-rate-limit` adds a rate limit
 to a form's submit handler. UI is `n/a`, because nothing visual changed. UX
 still does a full review, because users can now see a rejection message.
+
+### Branches
+
+`project.md` names two branches:
+- **Integration:** where approved jobs merge, locally. It can be any branch
+  except production.
+- **Production:** the factory never checks it out, merges into it or resets it.
+
+Jobs branch off the integration branch and merge back into it. A job's branch
+is deleted after it merges, so there's no PR per job. Keep your main checkout
+on the integration branch, with nothing uncommitted, while jobs merge.
+Otherwise approved jobs wait as needs-human until you run `/factory approve`.
+
+Which branch to use:
+- **`main`**, if pushing it deploys nothing.
+- **A `dev` branch**, if `main` is production.
+- **A feature branch**, if you work through pull requests. Set Integration to
+  e.g. `feature/checkout`, run several jobs into it, then push it and open one
+  PR. Point Integration at the next feature branch when you start it.
 
 ## Install
 
@@ -131,6 +151,13 @@ map of user-facing features. When `project.md`'s `Verification` names it, the
 builder, the UX/UI reviewers and the approver follow it rather than working out
 the app each time, and they save proof to `factory/jobs/<id>/evidence/`. Run
 `/factory init` again in a repo that's already set up to add one later.
+
+**New project?** `init` learns everything from the repo, so build the skeleton
+first, yourself or with plain Claude Code: a setup command, a passing test, and
+lint. Commit it on an integration branch (see [Branches](#branches)), then run
+`init`. Don't scaffold the skeleton through `/factory`: the approver escalates
+changes to dependency manifests and CI. `init` never overwrites `project.md`,
+so when your commands change later, edit it by hand.
 
 ## Watch it
 
