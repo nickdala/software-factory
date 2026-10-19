@@ -1,6 +1,6 @@
 ---
 name: factory
-description: Run the software factory. Use when the user types /factory (init, a feature, next, approve, rework, resume, retro) to take features through spec → build → 4 parallel reviews → approval → merge queue, each job in its own git worktree.
+description: Run the software factory. Use when the user types /factory (init, a feature, next, approve, rework, resume, retro) to take features through intent → spec → plan (each approved by a human) → build → 4 parallel reviews → approval → merge queue, each job in its own git worktree.
 argument-hint: "init | <feature> | next [N] | approve <job-id> | rework <job-id> <note> | resume [job-id] | retro [job-id]"
 ---
 
@@ -19,7 +19,7 @@ every job has its own state file, its own worktree and its own ports. Shared
 things (job ids, the backlog, the merge) are claimed atomically.
 
 ```
-MAX_PARALLEL = 3      # active jobs across ALL sessions (spec … merging)
+MAX_PARALLEL = 3      # active jobs across ALL sessions (intent … merging, not human-review)
 MAX_RESUMES  = 2      # builder resumes after CHANGES → at most 3 review rounds
 REVIEWERS    = security, ux, ui, code
 STATE        = python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py
@@ -30,7 +30,11 @@ STATE        = python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py
 ## The loop (edit this to change the factory)
 
 ```
-feature → [worktree] → spec-writer → builder ◄──────────────────┐
+feature → [worktree] → intent-writer → GATE → spec-writer → GATE → planner → GATE
+                                                                              │ plan approved
+                                        ┌─────────────────────────────────────┘
+                                        ▼
+                                     builder ◄───────────────────┐
                                         │ STATUS: READY          │
             ┌──────────┬──────────┬─────┴────┐                   │
          security      ux        ui        code                  │
@@ -42,11 +46,16 @@ feature → [worktree] → spec-writer → builder ◄────────�
                        merge queue ◄─────────── /factory approve ─────────────────┘
                             │ one at a time (lock)
                   merged into the integration branch (local, never pushed)
+
+GATE = human-review: the human reads the file, then
+       /factory approve → the next step, or /factory rework <note> → the same agent again
 ```
 
 | Step | Agent (`subagent_type`) | Writes |
 | --- | --- | --- |
-| spec | `software-factory:spec-writer` | `spec.md` |
+| intent | `software-factory:intent-writer` | `intent.md`, then a human gate |
+| spec | `software-factory:spec-writer` | `spec.md`, then a human gate |
+| plan | `software-factory:planner` | `plan.md`, then a human gate |
 | build | `software-factory:builder` | `build.md` + commits on `factory/<id>` |
 | review | `software-factory:review-security`, `-ux`, `-ui`, `-code` | `round-<N>/review-<name>.md` |
 | approve | `software-factory:approver` | `decision.md` |
@@ -91,12 +100,18 @@ feature → [worktree] → spec-writer → builder ◄────────�
   "stage": "review", "round": 2, "resumes": 1, "port": 5140,
   "builderAgent": "builder-004-reading-time",
   "approvedAt": null, "updated": "<ISO time>", "note": "",
+  "gate": null, "gates": { "intent": "<ISO time>", "spec": "<ISO time>", "plan": "<ISO time>" },
   "history": [ { "security": "CHANGES", "ux": "PASS", "ui": "n/a", "code": "PASS" } ],
   "reviews": { "security": "pending", "ux": "PASS", "ui": "n/a", "code": "PASS" } }
 ```
 
-- Stages: `queued`, `spec`, `build`, `review`, `approval`, `merging`, `merged`,
-  `needs-human`. The active stages are spec through merging. Worktree setup counts as spec.
+- Stages: `queued`, `intent`, `human-review`, `spec`, `plan`, `build`, `review`,
+  `approval`, `merging`, `merged`, `needs-human`. The active stages are `intent`,
+  `spec`, `plan`, `build`, `review`, `approval` and `merging`. Worktree setup
+  counts as intent. `human-review` is **not** active: a job waiting for a human
+  holds no slot.
+- `gate` is the gate a `human-review` job waits at (`intent`, `spec` or `plan`),
+  otherwise null. `gates` holds when the human approved each one, null until then.
 - `reviews` holds the current round: `pending`, `PASS`, `n/a` or `CHANGES`.
   `history` holds finished rounds, oldest first.
 - `note` is one short line for the board: why it's waiting, what failed.
@@ -108,8 +123,9 @@ feature → [worktree] → spec-writer → builder ◄────────�
 
 Every agent prompt starts with:
 `Job folder: <JOB_DIR>. Worktree: <WORKTREE>. Branch: <BRANCH>. Integration: <INTEGRATION>.`
-Then add the step-specific part: `Feature: …`, `Build round N.`, `Review round N.`
-or `Final round: N.`. The builder, review-ux, review-ui and the approver also
+Then add the step-specific part: `Feature: …` (intent-writer and spec-writer),
+`Plan.`, `Build round N.`, `Review round N.` or `Final round: N.`. A gate rework
+adds ` Rework: read <JOB_DIR>/<gate>-feedback.md and rewrite <gate>.md.` The builder, review-ux, review-ui and the approver also
 get ` Port: <port>.` when Browser check or Verification isn't `none`. Spawn the four reviewers in **one
 message**, so they run in parallel.
 
@@ -124,27 +140,34 @@ You'll be notified when it exits.
 1. **Claim.** Pick an id: `NNN=$(STATE next-id REPO)`, plus a 2–4 word
    kebab-case slug. Claim it with `mkdir REPO/factory/jobs/<id>` (no `-p`). If
    that fails, another session took the number: pick the next one and retry.
-   Write job.json with stage `queued`, round 0, resumes 0, and all four reviews pending.
+   Write job.json with stage `queued`, round 0, resumes 0, all four reviews
+   pending, `gate` null and all three `gates` null.
 2. **Slot.** Start only when `STATE active REPO` is below `MAX_PARALLEL`.
    Otherwise stay queued, and wait in the background for a slot to free.
-3. **Worktree** (stage spec). Run:
+3. **Worktree** (stage intent). Run:
    `git -C REPO worktree add -b BRANCH WORKTREE INTEGRATION`. Then run
    project.md's **Setup** command in it: `cd WORKTREE && <setup>`. Symlink a
    dependencies folder instead only if project.md explicitly opts in. If setup
    fails, go to **Needs human**.
-4. **Spec.** Spawn `spec-writer` with the paths and `Feature: <verbatim>`. When
-   it finishes, check that `spec.md` exists.
-5. **Build** (stage build). Spawn `builder` **named `builder-<id>`** (also its
-   description), with `Build round 1.`. Record `builderAgent`. When it finishes,
-   do the **build check**: read the first line of `build.md`.
-   `STATUS: READY` → review. `STATUS: BLOCKED` → **Needs human**, with the
-   `## Blocked` reason as the note.
-6. **Review round N** (stage review). Set `round: N` and all reviews to pending,
+4. **Intent** (stage intent). Spawn `intent-writer` with the paths and
+   `Feature: <verbatim>`. When it finishes, check that `intent.md` exists, then
+   go to the **Human gate** with gate `intent`.
+5. **Spec** (stage spec). Spawn `spec-writer` with the paths and
+   `Feature: <verbatim>`. When it finishes, check that `spec.md` exists, then
+   go to the **Human gate** with gate `spec`.
+6. **Plan** (stage plan). Spawn `planner` with the paths and `Plan.`. When it
+   finishes, check that `plan.md` exists, then go to the **Human gate** with gate `plan`.
+7. **Build** (stage build). Only once `gates.plan` is set. Spawn `builder`
+   **named `builder-<id>`** (also its description), with `Build round 1.`.
+   Record `builderAgent`. When it finishes, do the **build check**: read the
+   first line of `build.md`. `STATUS: READY` → review. `STATUS: BLOCKED` →
+   **Needs human**, with the `## Blocked` reason as the note.
+8. **Review round N** (stage review). Set `round: N` and all reviews to pending,
    then create `JOB_DIR/round-<N>/`. Spawn all four reviewers. As each finishes,
    read the first line of its file and record the verdict right away
    (`VERDICT: PASS (n/a)` is recorded as `n/a`). If a reviewer finishes without
    writing a valid first line, stop and tell the user.
-7. **WAIT FOR ALL.** The round is done only when all four `review-*.md` files
+9. **WAIT FOR ALL.** The round is done only when all four `review-*.md` files
    exist in `round-<N>/`. Never resume the builder mid-round. When it's done,
    append `reviews` to `history`, then:
    - **All PASS or n/a:** go to **Approve**.
@@ -156,10 +179,29 @@ You'll be notified when it exits.
      `ESCALATE`, a blank line, then
      `Review rounds exhausted. Outstanding CHANGES in round-<N>/ from: <reviewers>.`
      Go to **Needs human**.
-8. **Approve** (stage approval). Spawn `approver` with `Final round: N.`, then
-   read the first line of `decision.md`. `APPROVE` → set stage merging and
-   `approvedAt` to now, then go to **Merge**. `ESCALATE` → **Needs human**, with the
-   decision's second line as the note.
+10. **Approve** (stage approval). Spawn `approver` with `Final round: N.`, then
+    read the first line of `decision.md`. `APPROVE` → set stage merging and
+    `approvedAt` to now, then go to **Merge**. `ESCALATE` → **Needs human**, with the
+    decision's second line as the note.
+
+### Human gate
+
+Nothing is built until a human has approved the intent, the spec and the plan.
+After step 4, 5 or 6, set stage `human-review`, `gate` to `intent`, `spec` or
+`plan`, and the note to `read <gate>.md`. Tell the user:
+- which job is waiting, and at which gate
+- the file to read: `JOB_DIR/<gate>.md`. They may edit it before approving.
+- the commands they can use: `/factory approve <id>` to accept the file as it
+  stands, or `/factory rework <id> <note>` to send it back to the same agent
+
+Then stop driving the job: the session that runs the command takes it over.
+`human-review` holds no slot, so start the next of your queued jobs.
+
+**Leaving a gate.** Before the next agent runs, the job needs a slot again: if
+`STATE active REPO` is at `MAX_PARALLEL`, set stage queued with the note
+`<gate> approved; waiting for a slot` (or `<gate> rework; waiting for a slot`) and wait in the background, as in Slot.
+Then go on: after the intent gate to **Spec**, after the spec gate to **Plan**,
+after the plan gate to **Build**.
 
 ### Merge (one at a time, across all sessions)
 
@@ -203,7 +245,7 @@ When a job leaves the active stages, start the next of your queued jobs.
 
 Use SendMessage to `builderAgent`. If it can't be reached (for example, after a
 session restart), spawn a fresh `software-factory:builder` named `builder-<id>`.
-Tell it: "You are resuming. Read spec.md, build.md, every round folder, and
+Tell it: "You are resuming. Read intent.md, spec.md, plan.md, build.md, every round folder, and
 <the new input>, then continue." Update `builderAgent`.
 
 ## Commands
@@ -244,19 +286,34 @@ Tell it: "You are resuming. Read spec.md, build.md, every round folder, and
 Run one job with this feature, from step 1.
 
 ### `/factory next [N]`
-N defaults to 1, max `MAX_PARALLEL`. For each item: read `factory/backlog.md`
+N defaults to 1, max `MAX_PARALLEL`. Each job runs until its first human gate. For each item: read `factory/backlog.md`
 and claim the first `- [ ]` line with one Edit that replaces that exact line
 with `- [x] <item> → claimed`. If the Edit fails, another session changed the
 line, so re-read and try the next item. After step 1, replace `claimed` with
 the job id. Run the claimed jobs in parallel.
 
 ### `/factory approve <job-id>`
-The job must be in needs-human. If decision.md is missing or says ESCALATE,
+The job must be in human-review or needs-human.
+
+**human-review:** set `gates.<gate>` to now and `gate` to null, then leave the
+gate (see **Human gate**): intent → Spec, spec → Plan, plan → Build round 1.
+The gate's file is used as it stands, including any edits the human made.
+
+**needs-human:** if decision.md is missing or says ESCALATE,
 set the note to `human approved <date>`. Set stage merging and `approvedAt` to
 now, then run **Merge**.
 
 ### `/factory rework <job-id> <note>`
-The job must be in needs-human. Write the note, verbatim, to
+The job must be in human-review or needs-human.
+
+**human-review:** append the note, verbatim, to `JOB_DIR/<gate>-feedback.md`
+(create it if missing). Wait for a slot as when leaving a gate, then set the
+gate's own stage (`intent`, `spec` or `plan`) and spawn that gate's agent again
+with its usual prompt plus
+` Rework: read <JOB_DIR>/<gate>-feedback.md and rewrite <gate>.md.`
+When it finishes, check the file exists and return to the **Human gate** with the same gate.
+
+**needs-human:** write the note, verbatim, to
 `JOB_DIR/round-<round+1>/human.md`. Set stage build and resumes 0 (a rework
 gets a fresh `MAX_RESUMES`). Resume the builder with
 `Rework: read <that file> and address it, then update build.md for round <round+1>.`
@@ -268,13 +325,20 @@ For the given job, or for every job whose stage is queued or active:
 2. Ask the user to confirm that no other live session is running it. Two
    orchestrators must never drive one job.
 3. Continue from the first missing artifact:
+   - intent.md
+   - the intent gate (`gates.intent`)
    - spec.md
+   - the spec gate (`gates.spec`)
+   - plan.md
+   - the plan gate (`gates.plan`)
    - a READY build.md
    - the current round's four reviews
    - decision.md
    - the merge
 
-   Re-spawn any agent whose file is missing.
+   Re-spawn any agent whose file is missing. When a gate's file exists but
+   the gate isn't approved, the job is waiting at that gate: go to the **Human
+   gate** with it. A job.json with no `gates` field predates gates: skip them.
 
 ### `/factory retro [job-id]`
 Without an id, use the most recently updated job that's merged or in
@@ -290,4 +354,5 @@ Post one short line per transition, for example:
 `004-reading-time: round 2, security CHANGES, ux/ui/code PASS → resuming builder`.
 When this session's jobs are all merged or waiting, summarize:
 - what merged into INTEGRATION and is ready for the human to push
+- what waits at a human gate, and the file to read
 - what needs a human, and why
