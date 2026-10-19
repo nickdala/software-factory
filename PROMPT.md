@@ -28,7 +28,12 @@ session across several sessions in the same repo. That's safe because:
 ```mermaid
 flowchart TD
     feature(["feature"])
+    intent["intent-writer<br/><i>opus</i>"]
+    gateIntent{{"human gate<br/>intent.md"}}
     spec["spec-writer<br/><i>opus</i>"]
+    gateSpec{{"human gate<br/>spec.md"}}
+    planner["planner<br/><i>opus</i>"]
+    gatePlan{{"human gate<br/>plan.md"}}
     builder["builder<br/><i>opus</i>"]
     fan(( ))
     security["security<br/><i>opus</i>"]
@@ -41,8 +46,16 @@ flowchart TD
     queue["merge queue<br/>one at a time, under a lock"]
     merged[("merged into the integration branch<br/>local only, never pushed")]
 
-    feature -->|"claim an id, create the worktree, run setup"| spec
-    spec --> builder
+    feature -->|"claim an id, create the worktree, run setup"| intent
+    intent --> gateIntent
+    gateIntent -->|"/factory approve"| spec
+    gateIntent -.->|"/factory rework"| intent
+    spec --> gateSpec
+    gateSpec -->|"/factory approve"| planner
+    gateSpec -.->|"/factory rework"| spec
+    planner --> gatePlan
+    gatePlan -->|"/factory approve"| builder
+    gatePlan -.->|"/factory rework"| planner
     builder -->|"STATUS: READY"| fan
     fan --> security & ux & ui & code
     security & ux & ui & code --> wait
@@ -58,6 +71,8 @@ flowchart TD
 
     classDef needsHuman stroke:#d97706,stroke-width:2px
     class human needsHuman
+    classDef humanGate stroke:#3b5bdb,stroke-width:2px
+    class gateIntent,gateSpec,gatePlan humanGate
 ```
 
 ## Plugin repo layout
@@ -68,7 +83,7 @@ flowchart TD
   marketplace.json                 # marketplace "software-factory" listing this plugin (source "./")
 skills/factory/SKILL.md            # the orchestrator: loop, job steps, merge queue, commands
 agents/                            # one file per agent in the loop
-  spec-writer.md  builder.md  approver.md
+  intent-writer.md  spec-writer.md  planner.md  builder.md  approver.md
   review-security.md  review-ux.md  review-ui.md  review-code.md
 scripts/factory_state.py           # read-only queries over every job.json:
                                    #   active <repo> | queue-head <repo> | next-id <repo>
@@ -83,7 +98,7 @@ hooks/
   register.ts                      # the mod: status line + toasts
   register.test.ts                 # run with: claude plugin test .
 types/index.d.ts                   # PluginState contract for the mod's $.state
-examples/factory/                  # 5 example jobs in different stages, with
+examples/factory/                  # 6 example jobs in different stages, with
                                    # dashboard.html symlinked to templates/
 README.md                          # what it is, the loop diagram, install, commands
 PROMPT.md                          # this prompt
@@ -101,7 +116,11 @@ factory/
   .merge.lock/                     # exists only while a merge runs (gitignored)
   jobs/004-reading-time/           # one folder per job (gitignored runtime state)
     job.json                       # this job's state: one writer, its orchestrator
+    intent.md                      # each approved by a human at a gate
     spec.md
+    plan.md
+    plan-feedback.md               # only when /factory rework sent a gate back
+                                   # (also intent-feedback.md, spec-feedback.md)
     build.md                       # first line STATUS: READY | BLOCKED
     round-1/                       # one folder per review round,
       review-security.md           # one file per reviewer
@@ -137,11 +156,16 @@ Job state always lives in the main checkout, never in a worktree.
   "stage": "review", "round": 2, "resumes": 1, "port": 5140,
   "builderAgent": "builder-004-reading-time", "approvedAt": null,
   "updated": "<ISO>", "note": "",
+  "gate": null, "gates": { "intent": "<ISO>", "spec": "<ISO>", "plan": "<ISO>" },
   "history": [ { "security": "CHANGES", "ux": "PASS", "ui": "n/a", "code": "PASS" } ],
   "reviews": { "security": "pending", "ux": "PASS", "ui": "n/a", "code": "PASS" } }
 
-- Stages: queued, spec, build, review, approval, merging, merged, needs-human.
-  The active stages are spec through merging.
+- Stages: queued, intent, human-review, spec, plan, build, review, approval,
+  merging, merged, needs-human. The active stages are intent, spec, plan, build,
+  review, approval and merging. human-review is not active: a job waiting for a
+  human holds no slot.
+- `gate` is the gate a human-review job waits at (intent, spec or plan).
+  `gates` holds when the human approved each one.
 - `reviews` is the current round. `history` holds finished rounds. `note` is
   one line for the board.
 - Write it atomically (job.json.tmp, then mv) on every change, including each
@@ -153,20 +177,27 @@ Job state always lives in the main checkout, never in a worktree.
    another session took the number: try the next one. Start at stage queued.
 2. **Slot.** Start only while `factory_state.py active` is below MAX_PARALLEL.
    Otherwise wait in the background (`until …; do sleep 15; done`). Never poll agents.
-3. **Worktree and setup** (stage spec). If setup fails, go to needs-human.
-4. **spec-writer.**
-5. **builder,** named `builder-<id>`, so it can be resumed with SendMessage.
+3. **Worktree and setup** (stage intent). If setup fails, go to needs-human.
+4. **intent-writer,** then the intent gate.
+5. **spec-writer,** then the spec gate.
+6. **planner,** then the plan gate. At each gate the job goes to human-review
+   with `gate` set, and the orchestrator tells the user the file to read and the
+   two commands. `/factory approve` records the time in `gates` and moves on
+   (after waiting for a slot); `/factory rework` appends the note to
+   `<gate>-feedback.md` and re-spawns the same agent. The builder never runs
+   before the plan gate is approved.
+7. **builder,** named `builder-<id>`, so it can be resumed with SendMessage.
    Then the build check: `STATUS: READY` → review; `STATUS: BLOCKED` →
    needs-human, with the reason.
-6. **Review round N.** Spawn all four reviewers in one message, and record each
+8. **Review round N.** Spawn all four reviewers in one message, and record each
    verdict as it lands.
-7. **WAIT FOR ALL.** A round is done only when all four review files exist.
+9. **WAIT FOR ALL.** A round is done only when all four review files exist.
    Never resume the builder mid-round.
    - Any CHANGES and resumes left: resume the same builder, pointing it at the round folder.
    - Any CHANGES and no resumes left: the orchestrator writes `decision.md` itself
      (`ESCALATE` + "Review rounds exhausted…"), and the job goes to needs-human.
-8. **Approver.** APPROVE → stage merging, with `approvedAt` set. ESCALATE → needs-human.
-9. **Merge.**
+10. **Approver.** APPROVE → stage merging, with `approvedAt` set. ESCALATE → needs-human.
+11. **Merge.**
    1. Wait until the job is the queue head (oldest `approvedAt`, from
       `factory_state.py queue-head`) and it holds the lock
       (`mkdir factory/.merge.lock`, owner file inside). A lock whose owner
@@ -180,8 +211,8 @@ Job state always lives in the main checkout, never in a worktree.
    4. `git merge --no-ff`, remove the worktree, `git branch -d`, release the lock.
 - Never push. Never touch the production branch.
 - If the builder can't be reached with SendMessage, for example after a
-  restart, spawn a fresh builder-<id> told to read spec.md, build.md and every
-  round folder.
+  restart, spawn a fresh builder-<id> told to read intent.md, spec.md, plan.md,
+  build.md and every round folder.
 
 ## Agents (what each must do beyond the loop)
 
@@ -190,7 +221,12 @@ All agents:
 - follow the worktree rules above
 - write exactly one file, and never edit anything else
 
-- **spec-writer** writes spec.md with these sections:
+- **intent-writer** writes intent.md in plain language for a human: the
+  request verbatim, the problem, who it is for, the desired outcome, how we
+  will know it worked, constraints, and open questions (each with the answer
+  it will assume). No code, no plan.
+- **spec-writer** reads the approved intent.md and keeps the spec consistent
+  with it. It writes spec.md with these sections:
   - `> Feature: <verbatim>`
   - `Type: feature | bug`, and for a bug a **Symptom** section: what the user
     does, sees and expected, and where the spec-writer saw it
@@ -203,8 +239,16 @@ All agents:
 
   It prefers the smallest change, and asks for tests only if the repo has a runner.
   For a bug, AC-1 is "the symptom is gone", and it describes the symptom, not a cause.
+- **planner** reads the approved intent.md and spec.md and the code, and writes
+  plan.md: Approach, Files (change / add / delete), ordered Steps, a
+  Verification line for each acceptance criterion, and Risks. No code beyond
+  short signatures.
+- The three of them, when re-spawned by `/factory rework`, read
+  `<gate>-feedback.md` and rewrite their file to address it.
 - **builder:**
   - checks the current branch first
+  - reads intent.md, spec.md and plan.md, follows the plan, and records each
+    deviation from it, and why, in build.md's Log
   - matches the surrounding code, and makes the simplest change that meets the
     spec, with no new dependencies unless the spec asks
   - runs Verify, linting and format-checking **only the changed files**, never
@@ -310,18 +354,23 @@ instance is local and seeded. If Doctor fails, they fall back to Browser check.
                                  (don't make) a CI paths-ignore for factory/**,
                                  and tell the user to commit project.md
 /factory <feature>               run a new job through the loop
-/factory next [N]                N ≤ 3. Claim each item with one exact-line Edit
+/factory next [N]                N ≤ 3. Each job runs to its first human gate. Claim each item with one exact-line Edit
                                  ("- [ ] x" → "- [x] x → claimed", then the job id).
                                  If the Edit fails, another session took that item:
                                  re-read the backlog and try the next one.
-/factory approve <job-id>        needs-human jobs only → merging (approvedAt now) → Merge
-/factory rework <job-id> <note>  needs-human jobs only. Write the note to
+/factory approve <job-id>        human-review: record the gate's time in `gates`, then
+                                 the next step (intent → spec → plan → build).
+                                 needs-human: → merging (approvedAt now) → Merge
+/factory rework <job-id> <note>  human-review: append the note to <gate>-feedback.md and
+                                 re-spawn that gate's agent, then back to the gate.
+                                 needs-human: write the note to
                                  round-<round+1>/human.md, reset resumes, resume the
                                  builder, then the build check and a review round in
                                  that folder.
 /factory resume [job-id]         show each unfinished job's stage and how long since its
                                  last update, confirm no other live session drives it,
-                                 then continue from the first missing artifact
+                                 then continue from the first missing artifact or
+                                 unapproved gate (intent, spec, plan, then build …)
 /factory retro [job-id]          merged or needs-human jobs only (default: the most
                                  recent one). A general-purpose agent follows
                                  references/retro.md: reads the job folder and the
@@ -360,16 +409,17 @@ markdown renderer. Serve it with `python3 -m http.server 8000 --bind 127.0.0.1` 
 - Every 2s it lists jobs/ (from the server's directory index) and reads each
   job.json. It keeps the last good copy if a file is mid-write. A missing
   jobs/ folder means no jobs yet; a network error means the server is offline.
-- Jobs are cards that move across columns: Queued → Spec → Build → Review →
-  Approval → Merge queue → Merged. The merge queue is the merging jobs ordered
-  by approvedAt. A highlighted needs-human lane sits on top.
+- Jobs are cards that move across columns: Queued → Intent → Spec → Plan →
+  Build → Review → Approval → Merge queue → Merged. The merge queue is the
+  merging jobs ordered by approvedAt. Two highlighted lanes sit on top:
+  awaiting human review (each card names its gate) and needs-human.
 - Each card shows title, id, branch, round, queue position, time since its last
   update, and its note.
 - Each review round shows as a row of reviewer chips (pending / PASS / n/a /
   CHANGES) that fill in as verdicts land.
 - The header shows active jobs out of the cap and the merge queue.
 - Click a card to open a side panel. Its files come from the job folder's
-  listings, ordered spec, build, round-N (human, security, ux, ui, code), then
+  listings, ordered intent, spec, plan (each followed by its feedback file), build, round-N (human, security, ux, ui, code), then
   decision. Each tab has a verdict/status dot, and the file is rendered.
 - Clean and minimal: light and dark mode, keyboard accessible, no horizontal page scroll.
 
@@ -378,21 +428,24 @@ Load the plugin-authoring skill first and follow its conventions and types.
 - On session.start, if <cwd>/factory/jobs exists, read every jobs/*/job.json
   with $.fs every 2s via $.clock.every.
 - Status line, via $.ui.status:
-  `factory ▸ 2/3 running · 1 in review · 1 queued · 1 needs-human`. Clear it when idle.
-- Toasts, via $.ui.toast, on transitions only: a job enters needs-human, a job
+  `factory ▸ 2/3 running · 1 in review · 1 awaiting review · 1 queued · 1 needs-human`.
+  Clear it when idle.
+- Toasts, via $.ui.toast, on transitions only: a job enters human-review
+  (naming the gate), a job enters needs-human, a job
   merges, a job goes from merging back to build (merge failed). Keep the
   last-seen stages in $.state so a reload doesn't toast again. A job first seen
   mid-flight, for example one started by another session, is recorded without a toast.
 - Read-only.
 - register.test.ts covers:
-  - the status text
+  - the status text, including jobs awaiting human review
+  - the gate toast
   - one toast per transition, with no repeats
   - a new job from another session
   - silence when factory/jobs is absent
 
 ## Verify the plugin
 - `claude plugin validate .` and `claude plugin test .` pass.
-- A headless session with `--plugin-dir .` lists the 7 software-factory:* agents
+- A headless session with `--plugin-dir .` lists the 9 software-factory:* agents
   and the skill.
 - `examples/factory` served with http.server renders in a browser:
   - columns, chips and the needs-human lane

@@ -1,8 +1,8 @@
 # software-factory
 
 A small, visual software factory for Claude Code. `/factory` takes a feature
-through a fixed loop of agents (spec → build → four parallel reviews → approval
-→ merge queue). Each job gets its own git worktree. Up to 3 jobs run at once,
+through a fixed loop of agents (intent → spec → plan, each approved by a human,
+then build → four parallel reviews → approval → merge queue). Each job gets its own git worktree. Up to 3 jobs run at once,
 in one session or several. A browser board and a status line show where
 everything stands.
 
@@ -12,7 +12,12 @@ See [Credits](#credits).
 ```mermaid
 flowchart TD
     feature(["feature"])
+    intent["intent-writer<br/><i>opus</i>"]
+    gateIntent{{"human gate<br/>intent.md"}}
     spec["spec-writer<br/><i>opus</i>"]
+    gateSpec{{"human gate<br/>spec.md"}}
+    planner["planner<br/><i>opus</i>"]
+    gatePlan{{"human gate<br/>plan.md"}}
     builder["builder<br/><i>opus</i>"]
     fan(( ))
     security["security<br/><i>opus</i>"]
@@ -25,8 +30,16 @@ flowchart TD
     queue["merge queue<br/>one at a time, under a lock"]
     merged[("merged into the integration branch<br/>local only, never pushed")]
 
-    feature -->|"claim an id, create the worktree, run setup"| spec
-    spec --> builder
+    feature -->|"claim an id, create the worktree, run setup"| intent
+    intent --> gateIntent
+    gateIntent -->|"/factory approve"| spec
+    gateIntent -.->|"/factory rework"| intent
+    spec --> gateSpec
+    gateSpec -->|"/factory approve"| planner
+    gateSpec -.->|"/factory rework"| spec
+    planner --> gatePlan
+    gatePlan -->|"/factory approve"| builder
+    gatePlan -.->|"/factory rework"| planner
     builder -->|"STATUS: READY"| fan
     fan --> security & ux & ui & code
     security & ux & ui & code --> wait
@@ -42,15 +55,25 @@ flowchart TD
 
     classDef needsHuman stroke:#d97706,stroke-width:2px
     class human needsHuman
+    classDef humanGate stroke:#3b5bdb,stroke-width:2px
+    class gateIntent,gateSpec,gatePlan humanGate
 ```
 
 ## How it works
 
 - **The session that runs `/factory` orchestrates its jobs.** It spawns every
   agent and is the only writer of each job's `factory/jobs/<id>/job.json`.
+- **A human approves the intent, the spec and the plan before any code is
+  written.** The intent-writer captures the request's problem, audience,
+  outcome and open questions in `intent.md`. The spec-writer turns it into
+  `spec.md`, and the planner turns both into `plan.md`: the files, the steps,
+  and how each acceptance criterion will be checked. After each one, the job
+  waits at a gate (stage `human-review`). Read the file, edit it if you like,
+  then run `/factory approve <id>`, or `/factory rework <id> <note>` to have
+  the same agent rewrite it. A job waiting at a gate holds no parallel slot.
 - **Agents talk through files.** Each one reads `factory/project.md` (and
   `AGENTS.md`/`CLAUDE.md`), then writes exactly one file in the job folder:
-  - `spec.md`
+  - `intent.md`, `spec.md` and `plan.md`
   - `build.md`, whose first line is `STATUS: READY` or `BLOCKED`
   - `round-N/review-*.md`, whose first line is a verdict: `VERDICT: PASS`,
     `CHANGES` or, for UX/UI only, `PASS (n/a)` (see [Review verdicts](#review-verdicts))
@@ -176,12 +199,12 @@ The board lists `factory/jobs/` and reads every `job.json`, so jobs from every
 session show up. To try it with no jobs of your own:
 
 ```
-cd examples/factory && python3 -m http.server 8000 --bind 127.0.0.1   # five example jobs
+cd examples/factory && python3 -m http.server 8000 --bind 127.0.0.1   # six example jobs
 ```
 
 In Claude Code, the status line shows something like
-`factory ▸ 2/3 running · 1 in review · 1 needs-human`. Toasts appear when a job
-needs a human, merges, or fails to merge.
+`factory ▸ 2/3 running · 1 in review · 1 awaiting review · 1 needs-human`.
+Toasts appear when a job reaches a human gate, needs a human, merges, or fails to merge.
 
 ## Commands
 
@@ -190,8 +213,8 @@ needs a human, merges, or fails to merge.
 | `/factory init` | Create `factory/` and fill in `project.md` |
 | `/factory <feature>` | Run a new job through the loop |
 | `/factory next [N]` | Claim and run the first N (≤ 3) unchecked items of `backlog.md` |
-| `/factory approve <job-id>` | Send a needs-human job to the merge queue |
-| `/factory rework <job-id> <note>` | Send a needs-human job back to its builder with your note |
+| `/factory approve <job-id>` | Approve the intent, spec or plan a job waits at, or send a needs-human job to the merge queue |
+| `/factory rework <job-id> <note>` | Send a gated job's file back to its agent, or a needs-human job back to its builder, with your note |
 | `/factory resume [job-id]` | Pick up unfinished jobs after a session ends |
 | `/factory retro [job-id]` | Look back at a finished job and suggest fixes to the factory |
 
@@ -205,13 +228,13 @@ Plugin (this repo):
 ```
 .claude-plugin/              plugin.json, marketplace.json
 skills/factory/SKILL.md      the orchestrator: loop, job state machine, merge queue, commands
-agents/                      spec-writer, builder, approver, review-{security,ux,ui,code}
+agents/                      intent-writer, spec-writer, planner, builder, approver, review-{security,ux,ui,code}
 scripts/factory_state.py     read-only queries over every job.json (active count, merge-queue head, next id)
 templates/                   dashboard.html, project.md, backlog.md
 references/                  how to generate a repo's verification skill (from pstack), how to retro a job
 hooks/register.ts            the mod: status line + toasts (tests: register.test.ts)
 types/index.d.ts             the mod's state contract
-examples/factory/            five example jobs for the board
+examples/factory/            six example jobs for the board
 PROMPT.md                    the prompt that builds this plugin
 ```
 
@@ -222,7 +245,8 @@ factory/
   project.md                 repo facts every agent reads (commit this)
   backlog.md                 "- [ ] feature" queue (commit this)
   dashboard.html             the board
-  jobs/<id>/                 job.json, spec.md, build.md, round-N/*.md, decision.md, retro.md, evidence/ (gitignored)
+  jobs/<id>/                 job.json, intent.md, spec.md, plan.md, *-feedback.md, build.md, round-N/*.md,
+                             decision.md, retro.md, evidence/ (gitignored)
 .agents/skills/verify-<app>/ optional verification skill (commit this)
 ../<repo>-factory/<id>/      one worktree per active job
 ```
@@ -272,6 +296,11 @@ Three come from [Matt Pocock's skills](https://github.com/mattpocock/skills)
 - the code reviewer's separate spec and standards axes, and its code-smell
   list (from Martin Fowler's *Refactoring*), adapt `code-review`
 - `/factory retro` and `references/retro.md` adapt `retro`
+
+The human gates for intent, spec and plan follow the
+[AI Native SDLC Playbook](https://cdn.prod.website-files.com/6889473510b50328dbb70ae6/6aba736348bdf4f08183f463_AI%20Native%20SDLC%20Playbook_designv2%20%281%29.pdf):
+capture the intent, then the spec, then the plan, each reviewed by a human
+before a single line of code is written.
 
 ## Develop
 
