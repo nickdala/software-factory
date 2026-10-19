@@ -128,8 +128,14 @@ claude plugin install software-factory@software-factory
 Then, in the repo you want to run it on:
 
 ```
-/factory init
+cd /path/to/your-project
+claude "/factory init"
 ```
+
+Or type `/factory init` in a Claude Code session that's already open there.
+Run it interactively: `init` may ask which branch is the integration branch and
+whether to generate a verification skill, and it asks before running your
+setup and verify commands.
 
 `init` creates `factory/` and fills in `factory/project.md` by inspecting the repo:
 - stack and branches
