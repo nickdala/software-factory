@@ -1,0 +1,28 @@
+{
+  "id": "006-related-posts",
+  "title": "Related posts under each post",
+  "feature": "Show a few related posts at the end of each post",
+  "branch": "factory/006-related-posts",
+  "worktree": "/home/you/code/my-app-factory/006-related-posts",
+  "stage": "human-review",
+  "gate": "plan",
+  "gates": {
+    "intent": "2026-10-12T15:10:00Z",
+    "spec": "2026-10-12T15:24:00Z",
+    "plan": null
+  },
+  "round": 0,
+  "resumes": 0,
+  "port": null,
+  "builderAgent": null,
+  "approvedAt": null,
+  "updated": "2026-10-12T15:31:00Z",
+  "note": "read plan.md",
+  "history": [],
+  "reviews": {
+    "security": "pending",
+    "ux": "pending",
+    "ui": "pending",
+    "code": "pending"
+  }
+}
