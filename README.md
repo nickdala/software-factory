@@ -67,7 +67,7 @@ flowchart TD
   written.** The intent-writer captures the request's problem, audience,
   outcome and open questions in `intent.md`. The spec-writer turns it into
   `spec.md`, and the planner turns both into `plan.md`: the files, the steps,
-  and how each acceptance criterion will be checked. After each one, the job
+  the seams where tests go, and how each acceptance criterion will be checked. After each one, the job
   waits at a gate (stage `human-review`). Read the file, edit it if you like,
   then run `/factory approve <id>`, or `/factory rework <id> <note>` to have
   the same agent rewrite it. A job waiting at a gate holds no parallel slot.
@@ -289,13 +289,19 @@ by Lauren Tan (MIT License, Copyright (c) 2026 Lauren Tan):
 - the approver's "Prove it's safe" step adapts its `blast-radius` skill: find
   the one fact a change is safe because of, and prove it on a five-step scale
 
-Three come from [Matt Pocock's skills](https://github.com/mattpocock/skills)
+Several pieces come from [Matt Pocock's skills](https://github.com/mattpocock/skills)
 (MIT License, Copyright (c) 2026 Matt Pocock):
 - the builder's bug-fix loop adapts `diagnosing-bugs`: a failing command for
   the exact symptom before any theory, then shrink, hypothesise, fix
 - the code reviewer's separate spec and standards axes, and its code-smell
   list (from Martin Fowler's *Refactoring*), adapt `code-review`
 - `/factory retro` and `references/retro.md` adapt `retro`
+- the intent-writer's open questions adapt `grilling`: each has a recommended
+  answer that "yes" accepts, and facts are looked up rather than asked
+- the planner's rules adapt `to-tickets`, `to-spec` and `tdd`:
+  - thin vertical slices, with any prefactoring first
+  - expand, migrate, contract for wide mechanical changes
+  - a few high, agreed seams where tests go, which the builder sticks to
 
 The human gates for intent, spec and plan follow the
 [AI Native SDLC Playbook](https://cdn.prod.website-files.com/6889473510b50328dbb70ae6/6aba736348bdf4f08183f463_AI%20Native%20SDLC%20Playbook_designv2%20%281%29.pdf):

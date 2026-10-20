@@ -223,8 +223,10 @@ All agents:
 
 - **intent-writer** writes intent.md in plain language for a human: the
   request verbatim, the problem, who it is for, the desired outcome, how we
-  will know it worked, constraints, and open questions (each with the answer
-  it will assume). No code, no plan.
+  will know it worked, constraints, and open questions. Each question has a
+  recommended answer and is worded so "yes" accepts it. It looks facts up
+  itself and asks the human only for decisions. No code, no plan.
+  (Its question format adapts Matt Pocock's grilling.)
 - **spec-writer** reads the approved intent.md and keeps the spec consistent
   with it. It writes spec.md with these sections:
   - `> Feature: <verbatim>`
@@ -240,15 +242,20 @@ All agents:
   It prefers the smallest change, and asks for tests only if the repo has a runner.
   For a bug, AC-1 is "the symptom is gone", and it describes the symptom, not a cause.
 - **planner** reads the approved intent.md and spec.md and the code, and writes
-  plan.md: Approach, Files (change / add / delete), ordered Steps, a
-  Verification line for each acceptance criterion, and Risks. No code beyond
-  short signatures.
+  plan.md: Approach, Files (change / add / delete), ordered Steps, Seams
+  (where tests go, each with what it catches and misses), a Verification line
+  for each acceptance criterion, and Risks. No code beyond short signatures.
+  Its steps are thin vertical slices with any prefactoring first, and a wide
+  mechanical change is planned as expand, migrate, contract. Its seams are few,
+  high and preferably existing. (Adapted from Matt Pocock's to-tickets, to-spec
+  and tdd.)
 - The three of them, when re-spawned by `/factory rework`, read
   `<gate>-feedback.md` and rewrite their file to address it.
 - **builder:**
   - checks the current branch first
   - reads intent.md, spec.md and plan.md, follows the plan, and records each
-    deviation from it, and why, in build.md's Log
+    deviation from it, and why, in build.md's Log. It writes tests only at the
+    seams the plan names.
   - matches the surrounding code, and makes the simplest change that meets the
     spec, with no new dependencies unless the spec asks
   - runs Verify, linting and format-checking **only the changed files**, never
