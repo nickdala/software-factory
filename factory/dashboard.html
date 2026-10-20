@@ -238,7 +238,7 @@
     if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
     return `${Math.floor(s / 86400)}d ago`;
   };
-  const verdictClass = (v) => (v === "n/a" ? "na" : v || "pending");
+  const verdictClass = (v) => (v === "n/a" ? "na" : ["PASS", "CHANGES", "APPROVE", "ESCALATE"].includes(v) ? v : "pending");
 
   const chipRow = (label, reviews, past) => `
     <div class="round${past ? " past" : ""}"><span class="r">${esc(label)}</span>
