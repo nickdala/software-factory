@@ -3,7 +3,7 @@ import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import type { Job } from '../types'
-import { statusText } from './register'
+import { statusText, toastFor } from './register'
 
 const CWD = '/repo'
 const JOBS = `${CWD}/factory/jobs`
@@ -52,6 +52,26 @@ test('status text summarizes running, review, queued and needs-human jobs', () =
   ]
   expect(statusText(jobs)).toBe('factory ▸ 2/3 running · 1 in review · 1 queued · 1 needs-human')
   expect(statusText([job('005-e', 'merged')])).toBe(undefined)
+})
+
+test('status text counts jobs awaiting human review apart from running ones', () => {
+  const jobs = [job('001-a', 'human-review'), job('002-b', 'plan'), job('003-c', 'intent'), job('004-d', 'spec')]
+  expect(statusText(jobs)).toBe('factory ▸ 3/3 running · 1 awaiting review')
+  expect(statusText([job('001-a', 'human-review')])).toBe('factory ▸ 1 awaiting review')
+})
+
+test('toasts when a job reaches a human gate, naming the gate', async ($, on) => {
+  expect(toastFor('004-x', 'plan', 'human-review', 'plan')).toBe('◆ factory: 004-x plan ready for human review')
+
+  const w = world($, on, [job('001-a', 'intent')])
+  await w.start()
+
+  w.state.jobs = [{ ...job('001-a', 'human-review'), gate: 'intent' }]
+  await w.clock.advance(2000)
+  w.state.jobs = [job('001-a', 'spec')]
+  await w.clock.advance(2000)
+
+  expect(w.state.toasts).toEqual(['◆ factory: 001-a intent ready for human review'])
 })
 
 test('shows the status line from every job.json on session start', async ($, on) => {

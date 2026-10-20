@@ -10,7 +10,7 @@ import json
 import os
 import sys
 
-ACTIVE = {"spec", "build", "review", "approval", "merging"}
+ACTIVE = {"intent", "spec", "plan", "build", "review", "approval", "merging"}
 
 
 def jobs(repo):

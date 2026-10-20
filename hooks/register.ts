@@ -3,21 +3,22 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { Job, Seen, Stage } from '../types'
+import type { Gate, Job, Seen, Stage } from '../types'
 
 const MAX_PARALLEL = 3
 const POLL_MS = 2000
-const ACTIVE: readonly Stage[] = ['spec', 'build', 'review', 'approval', 'merging']
+const ACTIVE: readonly Stage[] = ['intent', 'spec', 'plan', 'build', 'review', 'approval', 'merging']
 
 const seen = atom({ plugin: 'software-factory', key: 'seen' } as const, null as Seen)
 
-/** `factory ▸ 2/3 running · 1 in review · 1 needs-human`, or undefined when idle. */
+/** `factory ▸ 2/3 running · 1 in review · 1 awaiting review · 1 needs-human`, or undefined when idle. */
 export const statusText = (jobs: readonly Job[]): string | undefined => {
   const count = (stages: readonly Stage[]) => jobs.filter(job => stages.includes(job.stage)).length
   const running = count(ACTIVE)
   const parts = [
     running > 0 ? `${running}/${MAX_PARALLEL} running` : '',
     count(['review']) > 0 ? `${count(['review'])} in review` : '',
+    count(['human-review']) > 0 ? `${count(['human-review'])} awaiting review` : '',
     count(['queued']) > 0 ? `${count(['queued'])} queued` : '',
     count(['needs-human']) > 0 ? `${count(['needs-human'])} needs-human` : '',
   ].filter(Boolean)
@@ -26,7 +27,8 @@ export const statusText = (jobs: readonly Job[]): string | undefined => {
 }
 
 /** The toast for a job moving from one stage to another, if it deserves one. */
-export const toastFor = (id: string, from: Stage, to: Stage): string | undefined => {
+export const toastFor = (id: string, from: Stage, to: Stage, gate?: Gate | null): string | undefined => {
+  if (to === 'human-review') return `◆ factory: ${id} ${gate ?? 'gate'} ready for human review`
   if (to === 'needs-human') return `⚠ factory: ${id} needs a human`
   if (to === 'merged') return `✓ factory: ${id} merged`
   if (from === 'merging' && to === 'build') return `✗ factory: ${id} failed to merge, back to the builder`
@@ -67,7 +69,7 @@ export const register: Register = on => {
       const now: Record<string, Stage> = { ...before }
       for (const job of jobs) {
         const from = before?.[job.id]
-        const toast = from !== undefined && from !== job.stage ? toastFor(job.id, from, job.stage) : undefined
+        const toast = from !== undefined && from !== job.stage ? toastFor(job.id, from, job.stage, job.gate) : undefined
         if (toast !== undefined) $.ui.toast(toast, { timeoutMs: 8000 })
         now[job.id] = job.stage
       }
