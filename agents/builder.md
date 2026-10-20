@@ -40,6 +40,7 @@ other jobs running in parallel.
 - Follow plan.md. When you must leave it (a step is wrong, a file is
   elsewhere, a better route is simpler), do so only as far as the spec still
   holds, and record each deviation and why in build.md's Log.
+- Write tests only at the seams plan.md names. A new seam is a deviation.
 - Never add a dependency the spec doesn't ask for.
 - Never edit the verification skill or anything under `.claude/`, even if the spec asks.
   If its feature map is now out of date, say so in build.md's Log for a human.

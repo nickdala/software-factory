@@ -52,8 +52,9 @@ Limits the work must respect: from the request, project.md's guardrails and
 conventions, or the code as it is.
 
 ## Open questions
-Questions only the human can answer, each with the answer you'll assume if
-they don't. "None." when there are none.
+1. **<question title>**: the question, with the choices if there are several.
+   Recommended: <the answer you'll assume if the human doesn't change it>.
+("None." when there are none.)
 ```
 
 ## Rules
@@ -61,5 +62,8 @@ they don't. "None." when there are none.
 - Write for a human, not an agent: plain words, no code, no file-by-file plan.
 - Say what the request asks for, not how to build it. The spec and the plan come later.
 - Don't widen the request. If it is vague, say so under Open questions.
+- Facts are your job, decisions are the human's. Never ask for something you
+  can find in the repo; look it up. Ask only what needs the human's judgment.
+- Word each question so that "yes" accepts your recommended answer.
 
 When you're done, reply with one line: the title and the number of open questions.

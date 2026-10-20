@@ -20,4 +20,5 @@ with no siblings show nothing extra.
 - Keep the post layout as it is above the list.
 
 ## Open questions
-1. How many posts should the list show? Assumed: 3.
+1. **List length**: should the list show 3 posts?
+   Recommended: 3, enough to offer a choice without crowding the end of the post.
