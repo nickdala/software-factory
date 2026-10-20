@@ -188,6 +188,32 @@ lint. Commit it on an integration branch (see [Branches](#branches)), then run
 changes to dependency manifests and CI. `init` never overwrites `project.md`,
 so when your commands change later, edit it by hand.
 
+### Updating
+
+```
+claude plugin marketplace update software-factory
+claude plugin update software-factory@software-factory
+```
+
+Then restart Claude Code: a running session keeps the version it started with.
+`claude plugin list` shows the installed version.
+
+After updating, in each repo that runs the factory:
+
+1. **Let running jobs reach a stopping point first.** Restarting ends the
+   orchestrator session. A job that was mid-step picks up again with
+   `/factory resume <id>`, which continues from the first missing file. Jobs
+   started before an update that adds a step (such as the human gates) skip
+   that step, so they don't go back to the start.
+2. **Refresh the board:** run `/factory init` again. On a repo that's already
+   set up, it only replaces `factory/dashboard.html`. It never touches
+   `project.md` or `backlog.md`.
+3. **Commit the refreshed `factory/dashboard.html`** on the integration
+   branch. An uncommitted change in the main checkout holds every approved job
+   at "approved; main checkout busy".
+4. **Read the release's changes to `templates/project.md`.** `init` never
+   rewrites an existing `project.md`, so add any new section by hand.
+
 ## Watch it
 
 ```
