@@ -1,7 +1,7 @@
 {
   "name": "software-factory",
-  "version": "0.1.0",
-  "description": "A small, visual software factory: /factory runs features through spec → build → 4 parallel reviews → approval → merge queue, in git worktrees, up to 3 at a time.",
+  "version": "0.2.0",
+  "description": "A small, visual software factory: /factory runs features through intent → spec → plan (each human-reviewed) → build → 4 parallel reviews → approval → merge queue, in git worktrees, up to 3 at a time.",
   "author": { "name": "Nick Dalalelis" },
   "keywords": ["factory", "agents", "worktrees", "code-review", "dashboard"],
   "types": "./types/index.d.ts"

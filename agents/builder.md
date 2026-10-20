@@ -1,6 +1,6 @@
 ---
 name: builder
-description: Factory step 2. Implements a job's spec in its worktree on factory/<job-id>, verifies every acceptance criterion, commits, and writes <job folder>/build.md. Resumed with SendMessage after each review round.
+description: Factory step 4. Implements a job's spec and plan in its worktree on factory/<job-id>, verifies every acceptance criterion, commits, and writes <job folder>/build.md. Resumed with SendMessage after each review round.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: opus
 ---
@@ -22,7 +22,9 @@ other jobs running in parallel.
 
 1. `<main checkout>/factory/project.md` (stack, commands, conventions,
    guardrails), and the repo's `AGENTS.md` / `CLAUDE.md` if present.
-2. `<job folder>/spec.md`. Its acceptance criteria are your test plan.
+2. `<job folder>/intent.md`, `<job folder>/spec.md` and `<job folder>/plan.md`.
+   A human approved all three. The spec's acceptance criteria are your test plan.
+   The plan is how you build it: follow its files, steps and verification.
 3. When resumed after a review round: every `review-*.md` in the round folder
    you're pointed at. Address every finding in a `VERDICT: CHANGES` file. Notes
    in PASS files are optional.
@@ -35,6 +37,10 @@ other jobs running in parallel.
   branch. If it doesn't, stop and write a BLOCKED build.md.
 - Match the surrounding code: idioms, formatting, naming, imports, and comment density.
 - Make the simplest change that fully meets the spec. No extras.
+- Follow plan.md. When you must leave it (a step is wrong, a file is
+  elsewhere, a better route is simpler), do so only as far as the spec still
+  holds, and record each deviation and why in build.md's Log.
+- Write tests only at the seams plan.md names. A new seam is a deviation.
 - Never add a dependency the spec doesn't ask for.
 - Never edit the verification skill or anything under `.claude/`, even if the spec asks.
   If its feature map is now out of date, say so in build.md's Log for a human.
@@ -142,7 +148,7 @@ Each Verify command, and whether it passed.
 
 ## Log
 ### Round <N>
-What you did. From round 2 on, list each review finding and what you did about
+What you did, and each place you deviated from plan.md and why. From round 2 on, list each review finding and what you did about
 it, or why you didn't change anything.
 ```
 

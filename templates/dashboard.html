@@ -73,6 +73,8 @@
   }
   .human h2 { color: var(--human); }
   .human .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .human.gates { border-color: var(--accent); background: var(--panel); }
+  .human.gates h2 { color: var(--accent); }
 
   .board {
     display: grid; grid-auto-flow: column; grid-auto-columns: minmax(190px, 1fr);
@@ -97,6 +99,8 @@
   .card:hover { border-color: var(--accent); }
   .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .card.needs-human { border-color: var(--human); }
+  .card.human-review { border-color: var(--accent); }
+  .gate { color: var(--accent); font-weight: 600; }
   .card.merged { opacity: .72; }
   .card .title { font-weight: 600; margin-bottom: 2px; overflow-wrap: anywhere; }
   .meta { font: 11.5px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
@@ -179,6 +183,10 @@
 
 <main>
   <div id="notice"></div>
+  <section class="human gates" id="gates" hidden>
+    <h2><span>◆ Awaiting human review</span><span class="n" id="gates-n"></span></h2>
+    <div class="cards" id="gates-cards"></div>
+  </section>
   <section class="human" id="human" hidden>
     <h2><span>⚠ Needs a human</span><span class="n" id="human-n"></span></h2>
     <div class="cards" id="human-cards"></div>
@@ -206,10 +214,10 @@
   const MAX_PARALLEL = 3;
   const POLL_MS = 2000;
   const COLUMNS = [
-    ["queued", "Queued"], ["spec", "Spec"], ["build", "Build"], ["review", "Review"],
-    ["approval", "Approval"], ["merging", "Merge queue"], ["merged", "Merged"],
+    ["queued", "Queued"], ["intent", "Intent"], ["spec", "Spec"], ["plan", "Plan"], ["build", "Build"],
+    ["review", "Review"], ["approval", "Approval"], ["merging", "Merge queue"], ["merged", "Merged"],
   ];
-  const ACTIVE = new Set(["spec", "build", "review", "approval", "merging"]);
+  const ACTIVE = new Set(["intent", "spec", "plan", "build", "review", "approval", "merging"]);
   const REVIEWERS = [["security", "SEC"], ["ux", "UX"], ["ui", "UI"], ["code", "CODE"]];
 
   const $ = (id) => document.getElementById(id);
@@ -238,7 +246,7 @@
     if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
     return `${Math.floor(s / 86400)}d ago`;
   };
-  const verdictClass = (v) => (v === "n/a" ? "na" : v || "pending");
+  const verdictClass = (v) => (v === "n/a" ? "na" : ["PASS", "CHANGES", "APPROVE", "ESCALATE"].includes(v) ? v : "pending");
 
   const chipRow = (label, reviews, past) => `
     <div class="round${past ? " past" : ""}"><span class="r">${esc(label)}</span>
@@ -260,7 +268,7 @@
         <div class="meta">${esc(job.id)}</div>
         <div class="meta">${esc(job.branch || "")}</div>
         <div class="row meta">
-          <span>${job.round ? `round ${esc(job.round)}` : esc(job.stage)}${qpos >= 0 ? ` · #${qpos + 1} in queue` : ""}</span>
+          <span>${job.stage === "human-review" ? `<span class="gate">${esc(job.gate || "")} gate</span> · awaiting review` : job.round ? `round ${esc(job.round)}` : esc(job.stage)}${qpos >= 0 ? ` · #${qpos + 1} in queue` : ""}</span>
           <span>${esc(ago(job.updated))}</span>
         </div>
         ${rows.length ? `<div class="rounds">${rows.join("")}</div>` : ""}
@@ -277,6 +285,11 @@
     $("queue").innerHTML = q.length
       ? `<span class="stat">merge queue</span>${q.map((id) => `<span class="pill">${esc(id)}</span>`).join("")}`
       : "";
+
+    const gated = jobs.filter((j) => j.stage === "human-review");
+    $("gates").hidden = gated.length === 0;
+    $("gates-n").textContent = gated.length;
+    $("gates-cards").innerHTML = gated.map(card).join("");
 
     const human = jobs.filter((j) => j.stage === "needs-human");
     $("human").hidden = human.length === 0;
@@ -354,10 +367,12 @@
   };
 
   // ---------- drawer ----------
-  // Files come from the job folder's listing: spec, build, round-N/*, decision.
+  // Files come from the job folder's listing: intent, spec, plan (each followed by
+  // its gate feedback), build, round-N/*, decision.
+  const TOP = ["intent.md", "intent-feedback.md", "spec.md", "spec-feedback.md", "plan.md", "plan-feedback.md", "build.md"];
   const fileOrder = (path) => {
     const m = path.match(/^round-(\d+)\/(.*)$/);
-    if (!m) return [path === "spec.md" ? 0 : path === "build.md" ? 1 : 9999, 0, path];
+    if (!m) return [TOP.includes(path) ? TOP.indexOf(path) : 9999, 0, path];
     const within = ["human.md", "review-security.md", "review-ux.md", "review-ui.md", "review-code.md"].indexOf(m[2]);
     return [100 + Number(m[1]), within < 0 ? 99 : within, path];
   };

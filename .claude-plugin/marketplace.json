@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "software-factory",
-      "description": "A small, visual software factory: /factory runs features through spec → build → 4 parallel reviews → approval → merge queue, in git worktrees.",
+      "description": "A small, visual software factory: /factory runs features through intent → spec → plan (each human-reviewed) → build → 4 parallel reviews → approval → merge queue, in git worktrees.",
       "source": "./",
       "category": "development"
     }

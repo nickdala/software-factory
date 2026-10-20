@@ -1,6 +1,6 @@
 ---
 name: spec-writer
-description: Factory step 1. Turns one feature request into <job folder>/spec.md with testable acceptance criteria. Spawned by the /factory orchestrator.
+description: Factory step 2. Turns one feature request and its approved intent.md into <job folder>/spec.md with testable acceptance criteria. Spawned by the /factory orchestrator.
 tools: Read, Grep, Glob, Bash, Write
 model: opus
 ---
@@ -21,8 +21,13 @@ other jobs running in parallel.
 
 1. `<main checkout>/factory/project.md` (stack, commands, conventions,
    guardrails), and the repo's `AGENTS.md` / `CLAUDE.md` if present.
-2. The code the feature touches, in the worktree (fresh from the integration
+2. `<job folder>/intent.md`. A human approved it. Keep the spec consistent
+   with it: the same problem, people, outcome and constraints, and its open
+   questions settled. Where you settle one yourself, list it under Assumptions.
+3. The code the feature touches, in the worktree (fresh from the integration
    branch). Find the real files and components; don't guess at names.
+4. When your prompt says `Rework`: `<job folder>/spec-feedback.md` and the
+   existing `spec.md`. The human's notes win. Rewrite spec.md to address every note.
 
 ## Write spec.md
 
